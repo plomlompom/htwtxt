@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -e
+
+echo WITHOUT FURTHER MODIFICATION
+echo THIS IS A REALLY BAD, THOROUGHLY INSECURE WAY TO SETUP HTWTXT.
+echo YOU HAVE BEEN WARNED.
+echo
+cd $GOPATH/src/htwtxt
+KEY=MyTrulyBadDefaultKey
+echo RUNNING WITH $KEY AS SESSIONSTORE KEY
+KEY=$KEY go run main.go
