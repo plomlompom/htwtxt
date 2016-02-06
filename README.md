@@ -9,19 +9,20 @@ The whole thing is written in Go, building expects a working Go environment,
 with $GOPATH set and the go tool installed.
 
 INSTALLATION/USAGE:
+-------------------
 
 Copy this directory into your $GOPATH's src directory, i.e. to
 $GOPATH/src/htwtxt – then run … 
 
-$ go get htwtxt
+ $ go get htwtxt
 
 … then. with $key some secret session store key only you know, …
 
-$ KEY=$key go run $GOPATH/src/htwtxt/main.go
+ $ KEY=$key go run $GOPATH/src/htwtxt/main.go
 
 Optional arguments:
 
-$ KEY=$key go run $GOPATH/src/htwtxt/main.go [PORT] [CERTIFICATE] [SERVER_KEY]
+ $ KEY=$key go run $GOPATH/src/htwtxt/main.go [PORT] [CERTIFICATE] [SERVER_KEY]
 
 PORT may be any desired port number to serve.
 
