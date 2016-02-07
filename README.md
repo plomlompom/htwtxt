@@ -1,33 +1,46 @@
-Quick and dirty hack of a server for hosted twtxt
-=================================================
+htwtxt – hosted twtxt server
+============================
 
-This provides a server to host twtxt feeds, if you want to provide users without
-their own easily accessed webspace with a simple in-browser solution to twtxt.
-(What is twtxt? See <https://github.com/buckket/twtxt>).
+Rationale
+---------
 
-The whole thing is written in Go, building expects a working Go environment,
-with $GOPATH set and the go tool installed.
+"twtxt" is a protocol and client (<https://github.com/buckket/twtxt>) for
+decentralized microblogging. Users are expected to provide their feeds as plain
+text files with URLs accessible over the Internet. "htwtxt" is a web server to
+host and grow such text files for users without trivial access to their own web
+space.
 
-INSTALLATION/USAGE:
--------------------
+Clone, build, run
+-----------------
 
-Copy this directory into your $GOPATH's src directory, i.e. to
-$GOPATH/src/htwtxt – then run … 
+With htwtxt written in Go, the following instructions expect a Go development
+environment with the go tool (<https://golang.org/cmd/go/>) installed, and the
+$GOPATH set:
 
+    $ git clone https://github.com/plomlompom/htwtxt $GOPATH/src/
     $ go get htwtxt
+    $ mkdir ~/htwtxt
+    $ cp -R $GOPATH/src/htwtxt/templates ~/htwtxt
+    $ cd ~/htwtxt
+    $ $GOPATH/bin/htwtxt
 
-… then. with $key some secret session store key only you know, …
+This will build and start the server, and set up directories and files expected
+by it below ~/htwtxt (or any other path you prefer instead of it).
 
-    $ KEY=$key go run $GOPATH/src/htwtxt/main.go
+Configuring port number and TLS
+-------------------------------
 
-Optional arguments:
+By default, htwtxt serves unencrypted HTTP over port 8000. But the executable
+accepts up to three optional arguments to change this:
 
-    $ KEY=$key go run $GOPATH/src/htwtxt/main.go [PORT] [CERTIFICATE] [SERVER_KEY]
+    $ $GOPATH/bin/htwtxt [PORT] [CERTIFICATE] [KEY]
 
-PORT may be any desired port number to serve.
+PORT is the port number to serve. CERTIFICATE and KEY are paths to the
+certificate and key files needed to run htwtxt as a HTTPS server.
 
-If you provide CERTIFICATE and SERVER KEY (both as file paths) as the second and
-third argument, the server will run as a HTTPS server instead of a HTTP server.
+Copyright, license
+------------------
 
-A quick and dirty setup-and-run script can be found in ./bad-setup-and-run.sh –
-an even dirtier one is found in ./bad-setup-and-run-https.sh …
+htwtx (C) 2016 Christian Heller a.k.a. plomlompom
+
+License: Affero GPL version 3, see ./LICENSE

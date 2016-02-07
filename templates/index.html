@@ -1,10 +1,12 @@
 <html>
-    <h1>sign up</h1>
-    <form method="POST" action="/signup">
-        Name: <input type="text" name="name" /> (legal chars: A-Z, a-z, 0-1, _)<br />
+    <h1>publish a twtxt</h1>
+    <form method="POST" action="twtxt">
+        Message: <input type="text" name="twt" size="140" /><br />
+        Name: <input type="text" name="name" />
         Password: <input type="password" name="password" /><br />
-        <input type="submit" value="create" />
+        <input type="submit" value="twt" />
     </form>
+    No feed yet? <a href="/signup">Create one!</a>
     <hr />
     <p>This project is licensed under the <a href="http://www.gnu.org/licenses/agpl-3.0.html">AGPLv3</a>, source code <a href="https://github.com/plomlompom/htwtxt">here</a>.</p>
 </html>
