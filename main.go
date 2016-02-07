@@ -186,6 +186,8 @@ func main() {
 	}
 	router := mux.NewRouter()
 	router.HandleFunc("/", indexHandler)
+	router.HandleFunc("/twtxt", indexHandler).Methods("GET")
+	router.HandleFunc("/twtxt/", indexHandler).Methods("GET")
 	router.HandleFunc("/signup", signUpFormHandler).Methods("GET")
 	router.HandleFunc("/signup", signUpHandler).Methods("POST")
 	router.HandleFunc("/twtxt", twtxtPostHandler).Methods("POST")
