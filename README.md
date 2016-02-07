@@ -17,7 +17,7 @@ With htwtxt written in Go, the following instructions expect a Go development
 environment with the go tool (<https://golang.org/cmd/go/>) installed, and the
 $GOPATH set:
 
-    git clone https://github.com/plomlompom/htwtxt $GOPATH/src/
+    git clone https://github.com/plomlompom/htwtxt $GOPATH/src/htwtxt
     go get htwtxt
     mkdir ~/htwtxt
     cp -R $GOPATH/src/htwtxt/templates ~/htwtxt
