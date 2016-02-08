@@ -71,8 +71,10 @@ func signUpFormHandler(w http.ResponseWriter, r *http.Request) {
 func signUpHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	pw := r.FormValue("password")
-	if 0 == strings.Compare("name", "") || 0 == strings.Compare(pw, "") ||
-		!onlyLegalRunes(name) || len(name) > 140 {
+	pw2 := r.FormValue("password2")
+	if 0 != strings.Compare(pw, pw2) || 0 == strings.Compare("name", "") ||
+		0 == strings.Compare(pw, "") || !onlyLegalRunes(name) ||
+		len(name) > 140 {
 		execTemplate(w, "error.html", "Invalid values.")
 		return
 	}
