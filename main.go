@@ -102,6 +102,31 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 	execTemplate(w, "signup.html", "")
 }
 
+func listHandler(w http.ResponseWriter, r *http.Request) {
+	file, err := os.Open(loginsFile)
+	defer file.Close()
+	if err != nil {
+		log.Fatal("Can't open file for reading", err)
+	}
+	scanner := bufio.NewScanner(bufio.NewReader(file))
+	var dir []string
+	for {
+		if !scanner.Scan() {
+			break
+		}
+		line := scanner.Text()
+		tokens := strings.Split(line, " ")
+		if len(tokens) == 2 {
+			dir = append(dir, tokens[0])
+		}
+	}
+	type data struct{ Dir []string }
+	err = templ.ExecuteTemplate(w, "list.html", data{Dir: dir})
+	if err != nil {
+		log.Fatal("Trouble executing template", err)
+	}
+}
+
 func twtxtPostHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	pw := r.FormValue("password")
@@ -186,8 +211,8 @@ func main() {
 	}
 	router := mux.NewRouter()
 	router.HandleFunc("/", indexHandler)
-	router.HandleFunc("/twtxt", indexHandler).Methods("GET")
-	router.HandleFunc("/twtxt/", indexHandler).Methods("GET")
+	router.HandleFunc("/twtxt", listHandler).Methods("GET")
+	router.HandleFunc("/twtxt/", listHandler)
 	router.HandleFunc("/signup", signUpFormHandler).Methods("GET")
 	router.HandleFunc("/signup", signUpHandler).Methods("POST")
 	router.HandleFunc("/twtxt", twtxtPostHandler).Methods("POST")
