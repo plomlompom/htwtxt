@@ -72,6 +72,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	pw := r.FormValue("password")
 	pw2 := r.FormValue("password2")
+	mail := r.FormValue("mail")
 	if 0 != strings.Compare(pw, pw2) || 0 == strings.Compare("name", "") ||
 		0 == strings.Compare(pw, "") || !onlyLegalRunes(name) ||
 		len(name) > 140 {
@@ -99,7 +100,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal("Can't generate password hash", err)
 	}
-	new_line := name + " " + string(hash) + "\n"
+	new_line := name + " " + string(hash) + " " + mail + "\n"
 	appendToFile(loginsFile, new_line)
 	execTemplate(w, "signup.html", "")
 }
@@ -118,7 +119,7 @@ func listHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		line := scanner.Text()
 		tokens := strings.Split(line, " ")
-		if len(tokens) == 2 {
+		if len(tokens) == 3 {
 			dir = append(dir, tokens[0])
 		}
 	}
@@ -145,7 +146,7 @@ func twtxtPostHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		line := scanner.Text()
 		tokens := strings.Split(line, " ")
-		if len(tokens) == 2 {
+		if len(tokens) == 3 {
 			if 0 == strings.Compare(tokens[0], name) &&
 				nil == bcrypt.CompareHashAndPassword(
 					[]byte(tokens[1]), []byte(pw)) {
