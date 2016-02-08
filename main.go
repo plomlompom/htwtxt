@@ -174,7 +174,8 @@ func accountPostHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	text = []byte(strings.Join(lines, "\n"))
+	linesJoined := strings.Join(lines, "\n")
+	text = []byte(linesJoined[:len(linesJoined)-1])
 	tmpFile := "tmp_" + loginsFile
 	if err := ioutil.WriteFile(tmpFile, []byte(text), 0600); err != nil {
 		log.Fatal("Trouble writing file", err)
