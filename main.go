@@ -3,9 +3,11 @@
 package main
 
 import "bufio"
+import "errors"
 import "github.com/gorilla/mux"
 import "golang.org/x/crypto/bcrypt"
 import "html/template"
+import "io/ioutil"
 import "log"
 import "net/http"
 import "os"
@@ -60,6 +62,76 @@ func execTemplate(w http.ResponseWriter, file string, input string) {
 	}
 }
 
+func login(w http.ResponseWriter, r *http.Request) (string, error) {
+	name := r.FormValue("name")
+	pw := r.FormValue("password")
+	loginValid := false
+	file, err := os.Open(loginsFile)
+	defer file.Close()
+	if err != nil {
+		log.Fatal("Can't open file for reading", err)
+	}
+	scanner := bufio.NewScanner(bufio.NewReader(file))
+	for {
+		if !scanner.Scan() {
+			break
+		}
+		line := scanner.Text()
+		tokens := strings.Split(line, " ")
+		if len(tokens) == 3 {
+			if 0 == strings.Compare(tokens[0], name) &&
+				nil == bcrypt.CompareHashAndPassword(
+					[]byte(tokens[1]), []byte(pw)) {
+				loginValid = true
+
+			}
+		}
+	}
+	if !loginValid {
+		execTemplate(w, "error.html", "Bad login.")
+		return name, errors.New("")
+	}
+	return name, nil
+}
+
+func accountLine(w http.ResponseWriter, r *http.Request,
+	checkDupl bool) (string, error) {
+	name := r.FormValue("name")
+	pw := r.FormValue("new_password")
+	pw2 := r.FormValue("new_password2")
+	mail := r.FormValue("mail")
+	if 0 != strings.Compare(pw, pw2) || 0 == strings.Compare("name", "") ||
+		0 == strings.Compare(pw, "") || !onlyLegalRunes(name) ||
+		len(name) > 140 {
+		execTemplate(w, "error.html", "Invalid values.")
+		return "", errors.New("")
+	}
+	if checkDupl {
+		fileRead, err := os.Open(loginsFile)
+		defer fileRead.Close()
+		if err != nil {
+			log.Fatal("Can't open file for reading", err)
+		}
+		scanner := bufio.NewScanner(bufio.NewReader(fileRead))
+		for {
+			if !scanner.Scan() {
+				break
+			}
+			line := scanner.Text()
+			tokens := strings.Split(line, " ")
+			if 0 == strings.Compare(name, tokens[0]) {
+				execTemplate(w, "error.html", "Username taken.")
+				return "", errors.New("")
+			}
+		}
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatal("Can't generate password hash", err)
+	}
+	return name + " " + string(hash) + " " + mail + "\n", nil
+}
+
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	execTemplate(w, "index.html", "")
 }
@@ -69,39 +141,53 @@ func signUpFormHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func signUpHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.FormValue("name")
-	pw := r.FormValue("password")
-	pw2 := r.FormValue("password2")
-	mail := r.FormValue("mail")
-	if 0 != strings.Compare(pw, pw2) || 0 == strings.Compare("name", "") ||
-		0 == strings.Compare(pw, "") || !onlyLegalRunes(name) ||
-		len(name) > 140 {
-		execTemplate(w, "error.html", "Invalid values.")
+	newLine, err := accountLine(w, r, true)
+	if err != nil {
 		return
 	}
-	fileRead, err := os.Open(loginsFile)
-	defer fileRead.Close()
+	appendToFile(loginsFile, newLine)
+	execTemplate(w, "feedset.html", "")
+}
+
+func accountFormHandler(w http.ResponseWriter, r *http.Request) {
+	execTemplate(w, "accountform.html", "")
+}
+
+func accountPostHandler(w http.ResponseWriter, r *http.Request) {
+	name, err := login(w, r)
 	if err != nil {
-		log.Fatal("Can't open file for reading", err)
+		return
 	}
-	scanner := bufio.NewScanner(bufio.NewReader(fileRead))
-	for {
-		if !scanner.Scan() {
-			break
-		}
-		line := scanner.Text()
+	newLine, err := accountLine(w, r, false)
+	if err != nil {
+		return
+	}
+	text, err := ioutil.ReadFile(loginsFile)
+	if err != nil {
+		log.Fatal("Can't read file", err)
+	}
+	lines := strings.Split(string(text), "\n")
+	for i, line := range lines {
 		tokens := strings.Split(line, " ")
 		if 0 == strings.Compare(name, tokens[0]) {
-			execTemplate(w, "error.html", "Username taken.")
-			return
+			lines[i] = newLine
+			break
 		}
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
-	if err != nil {
-		log.Fatal("Can't generate password hash", err)
+	text = []byte(strings.Join(lines, "\n"))
+	tmpFile := "tmp_" + loginsFile
+	if err := ioutil.WriteFile(tmpFile, []byte(text), 0600); err != nil {
+		log.Fatal("Trouble writing file", err)
 	}
-	new_line := name + " " + string(hash) + " " + mail + "\n"
-	appendToFile(loginsFile, new_line)
+	if err := os.Rename(loginsFile, "_"+loginsFile); err != nil {
+		log.Fatal("Trouble moving file", err)
+	}
+	if err := os.Rename(tmpFile, loginsFile); err != nil {
+		log.Fatal("Trouble moving file", err)
+	}
+	if err := os.Remove("_" + loginsFile); err != nil {
+		log.Fatal("Trouble removing file", err)
+	}
 	execTemplate(w, "signup.html", "")
 }
 
@@ -131,32 +217,8 @@ func listHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func twtxtPostHandler(w http.ResponseWriter, r *http.Request) {
-	name := r.FormValue("name")
-	pw := r.FormValue("password")
-	loginValid := false
-	file, err := os.Open(loginsFile)
-	defer file.Close()
+	name, err := login(w, r)
 	if err != nil {
-		log.Fatal("Can't open file for reading", err)
-	}
-	scanner := bufio.NewScanner(bufio.NewReader(file))
-	for {
-		if !scanner.Scan() {
-			break
-		}
-		line := scanner.Text()
-		tokens := strings.Split(line, " ")
-		if len(tokens) == 3 {
-			if 0 == strings.Compare(tokens[0], name) &&
-				nil == bcrypt.CompareHashAndPassword(
-					[]byte(tokens[1]), []byte(pw)) {
-				loginValid = true
-
-			}
-		}
-	}
-	if !loginValid {
-		execTemplate(w, "error.html", "Bad login.")
 		return
 	}
 	text := r.FormValue("twt")
@@ -216,6 +278,8 @@ func main() {
 	router.HandleFunc("/", indexHandler)
 	router.HandleFunc("/twtxt", listHandler).Methods("GET")
 	router.HandleFunc("/twtxt/", listHandler)
+	router.HandleFunc("/account", accountFormHandler).Methods("GET")
+	router.HandleFunc("/account", accountPostHandler).Methods("POST")
 	router.HandleFunc("/signup", signUpFormHandler).Methods("GET")
 	router.HandleFunc("/signup", signUpHandler).Methods("POST")
 	router.HandleFunc("/twtxt", twtxtPostHandler).Methods("POST")
