@@ -129,7 +129,7 @@ func accountLine(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		log.Fatal("Can't generate password hash", err)
 	}
-	return name + " " + string(hash) + " " + mail + "\n", nil
+	return name + " " + string(hash) + " " + mail, nil
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -145,7 +145,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	appendToFile(loginsFile, newLine)
+	appendToFile(loginsFile, newLine+"\n")
 	execTemplate(w, "feedset.html", "")
 }
 
@@ -174,8 +174,7 @@ func accountPostHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	linesJoined := strings.Join(lines, "\n")
-	text = []byte(linesJoined[:len(linesJoined)-1])
+	text = []byte(strings.Join(lines, "\n"))
 	tmpFile := "tmp_" + loginsFile
 	if err := ioutil.WriteFile(tmpFile, []byte(text), 0600); err != nil {
 		log.Fatal("Trouble writing file", err)
