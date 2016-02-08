@@ -188,7 +188,7 @@ func accountPostHandler(w http.ResponseWriter, r *http.Request) {
 	if err := os.Remove("_" + loginsFile); err != nil {
 		log.Fatal("Trouble removing file", err)
 	}
-	execTemplate(w, "signup.html", "")
+	execTemplate(w, "feedset.html", "")
 }
 
 func listHandler(w http.ResponseWriter, r *http.Request) {
