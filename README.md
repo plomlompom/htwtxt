@@ -20,12 +20,10 @@ $GOPATH set:
     git clone https://github.com/plomlompom/htwtxt $GOPATH/src/htwtxt
     go get htwtxt
     mkdir ~/htwtxt
-    cp -R $GOPATH/src/htwtxt/templates ~/htwtxt
-    cd ~/htwtxt
     $GOPATH/bin/htwtxt
 
-This will build and start the server, and set up directories and files expected
-by it below ~/htwtxt (or any other path you prefer instead of this).
+This will build and start the server, which will store login and feed data below
+~/htwtxt. An alternate directory may be specified with the --dir flag.
 
 Configuring port number and TLS
 -------------------------------

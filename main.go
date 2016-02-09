@@ -19,6 +19,8 @@ import "time"
 const loginsFile = "logins.txt"
 const twtsDir = "feeds"
 
+var dataDir string
+var loginsPath string
 var templ *template.Template
 
 func createFileIfNotExists(path string) {
@@ -65,7 +67,7 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 	name := r.FormValue("name")
 	pw := r.FormValue("password")
 	loginValid := false
-	file, err := os.Open(loginsFile)
+	file, err := os.Open(loginsPath)
 	defer file.Close()
 	if err != nil {
 		log.Fatal("Can't open file for reading", err)
@@ -106,7 +108,7 @@ func accountLine(w http.ResponseWriter, r *http.Request,
 		return "", errors.New("")
 	}
 	if checkDupl {
-		fileRead, err := os.Open(loginsFile)
+		fileRead, err := os.Open(loginsPath)
 		defer fileRead.Close()
 		if err != nil {
 			log.Fatal("Can't open file for reading", err)
@@ -144,7 +146,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	appendToFile(loginsFile, newLine+"\n")
+	appendToFile(loginsPath, newLine+"\n")
 	execTemplate(w, "feedset.html", "")
 }
 
@@ -161,7 +163,7 @@ func accountPostHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	text, err := ioutil.ReadFile(loginsFile)
+	text, err := ioutil.ReadFile(loginsPath)
 	if err != nil {
 		log.Fatal("Can't read file", err)
 	}
@@ -174,24 +176,24 @@ func accountPostHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	text = []byte(strings.Join(lines, "\n"))
-	tmpFile := "tmp_" + loginsFile
+	tmpFile := "tmp_" + loginsPath
 	if err := ioutil.WriteFile(tmpFile, []byte(text), 0600); err != nil {
 		log.Fatal("Trouble writing file", err)
 	}
-	if err := os.Rename(loginsFile, "_"+loginsFile); err != nil {
+	if err := os.Rename(loginsPath, "_"+loginsFile); err != nil {
 		log.Fatal("Trouble moving file", err)
 	}
-	if err := os.Rename(tmpFile, loginsFile); err != nil {
+	if err := os.Rename(tmpFile, loginsPath); err != nil {
 		log.Fatal("Trouble moving file", err)
 	}
-	if err := os.Remove("_" + loginsFile); err != nil {
+	if err := os.Remove("_" + loginsPath); err != nil {
 		log.Fatal("Trouble removing file", err)
 	}
 	execTemplate(w, "feedset.html", "")
 }
 
 func listHandler(w http.ResponseWriter, r *http.Request) {
-	file, err := os.Open(loginsFile)
+	file, err := os.Open(loginsPath)
 	defer file.Close()
 	if err != nil {
 		log.Fatal("Can't open file for reading", err)
@@ -247,13 +249,21 @@ func main() {
 	portPtr := flag.Int("port", 8000, "port to serve")
 	keyPtr := flag.String("key", "", "SSL key file")
 	certPtr := flag.String("cert", "", "SSL certificate file")
+	templDirPtr := flag.String("templates",
+		os.Getenv("GOPATH")+"/src/htwtxt/templates",
+		"directory where to expect HTML templates")
+	flag.StringVar(&dataDir, "dir", os.Getenv("HOME")+"/htwtxt",
+		"directory to store feeds and login data")
 	flag.Parse()
+	log.Println("Using as templates dir:", *templDirPtr)
+	log.Println("Using as data dir:", dataDir)
+	loginsPath = dataDir + "/" + loginsFile
 	if ("" == *keyPtr && "" != *certPtr) ||
 		("" != *keyPtr && "" == *certPtr) {
 		log.Fatal("Expect either both key and certificate or none.")
 	}
 	if "" != *keyPtr {
-		log.Println("using TLS")
+		log.Println("Using TLS.")
 		if _, err := os.Stat(*certPtr); err != nil {
 			log.Fatal("No certificate file found.")
 		}
@@ -261,10 +271,10 @@ func main() {
 			log.Fatal("No server key file found.")
 		}
 	}
-	createFileIfNotExists(loginsFile)
+	createFileIfNotExists(loginsPath)
 	// TODO: Handle err here.
 	_ = os.Mkdir(twtsDir, 0700)
-	templ, err = template.New("main").ParseGlob("./templates/*.html")
+	templ, err = template.New("main").ParseGlob(*templDirPtr + "/*.html")
 	if err != nil {
 		log.Fatal("Can't set up new template: ", err)
 	}
