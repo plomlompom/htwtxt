@@ -16,7 +16,7 @@ import "strings"
 import "time"
 
 const loginsFile = "logins.txt"
-const twtsDir = "twtxt"
+const twtsDir = "feeds"
 const portDefault = 8000
 
 var useHttps bool
@@ -276,14 +276,14 @@ func main() {
 	}
 	router := mux.NewRouter()
 	router.HandleFunc("/", indexHandler)
-	router.HandleFunc("/twtxt", listHandler).Methods("GET")
-	router.HandleFunc("/twtxt/", listHandler)
+	router.HandleFunc("/feeds", listHandler).Methods("GET")
+	router.HandleFunc("/feeds/", listHandler)
 	router.HandleFunc("/account", accountFormHandler).Methods("GET")
 	router.HandleFunc("/account", accountPostHandler).Methods("POST")
 	router.HandleFunc("/signup", signUpFormHandler).Methods("GET")
 	router.HandleFunc("/signup", signUpHandler).Methods("POST")
-	router.HandleFunc("/twtxt", twtxtPostHandler).Methods("POST")
-	router.HandleFunc("/twtxt/{name}", twtxtHandler)
+	router.HandleFunc("/feeds", twtxtPostHandler).Methods("POST")
+	router.HandleFunc("/feeds/{name}", twtxtHandler)
 	http.Handle("/", router)
 	log.Println("serving at port", port)
 	if useHttps {

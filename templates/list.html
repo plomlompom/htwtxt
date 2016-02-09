@@ -2,7 +2,7 @@
     <h1>list of feeds</h1>
     <ul>
     {{ range .Dir }}
-        <li><a href="/twtxt/{{ . }}">{{ . }}</li>
+        <li><a href="/feeds/{{ . }}">{{ . }}</a></li>
     {{ end }}
     </ul>
     <hr />
