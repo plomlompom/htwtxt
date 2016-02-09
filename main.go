@@ -18,7 +18,6 @@ import "time"
 
 const loginsFile = "logins.txt"
 const twtsDir = "feeds"
-const portDefault = 8000
 
 var templ *template.Template
 
