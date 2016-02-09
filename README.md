@@ -38,4 +38,4 @@ Copyright, license
 
 htwtxt (c) 2016 Christian Heller a.k.a. plomlompom
 
-License: Affero GPL version 3, see ./LICENSE
+License: Affero GPL version 3, see `./LICENSE`
