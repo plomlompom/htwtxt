@@ -4,6 +4,7 @@ package main
 
 import "bufio"
 import "errors"
+import "flag"
 import "github.com/gorilla/mux"
 import "golang.org/x/crypto/bcrypt"
 import "html/template"
@@ -19,7 +20,6 @@ const loginsFile = "logins.txt"
 const twtsDir = "feeds"
 const portDefault = 8000
 
-var useHttps bool
 var templ *template.Template
 
 func createFileIfNotExists(path string) {
@@ -244,26 +244,21 @@ func twtxtHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	useHttps = false
-	port := portDefault
 	var err error
-	if len(os.Args) > 1 {
-		port, err = strconv.Atoi(os.Args[1])
-		if err != nil {
-			log.Fatal("Invalid port argument:", err)
-		}
+	portPtr := flag.Int("port", 8000, "port to serve")
+	keyPtr := flag.String("key", "", "SSL key file")
+	certPtr := flag.String("cert", "", "SSL certificate file")
+	flag.Parse()
+	if ("" == *keyPtr && "" != *certPtr) ||
+		("" != *keyPtr && "" == *certPtr) {
+		log.Fatal("Expect either both key and certificate or none.")
 	}
-	var certificateFile string
-	var serverKeyFile string
-	if len(os.Args) > 3 {
-		useHttps = true
+	if "" != *keyPtr {
 		log.Println("using TLS")
-		certificateFile = os.Args[2]
-		serverKeyFile = os.Args[3]
-		if _, err := os.Stat(certificateFile); err != nil {
+		if _, err := os.Stat(*certPtr); err != nil {
 			log.Fatal("No certificate file found.")
 		}
-		if _, err := os.Stat(serverKeyFile); err != nil {
+		if _, err := os.Stat(*keyPtr); err != nil {
 			log.Fatal("No server key file found.")
 		}
 	}
@@ -285,12 +280,12 @@ func main() {
 	router.HandleFunc("/feeds", twtxtPostHandler).Methods("POST")
 	router.HandleFunc("/feeds/{name}", twtxtHandler)
 	http.Handle("/", router)
-	log.Println("serving at port", port)
-	if useHttps {
-		err = http.ListenAndServeTLS(":"+strconv.Itoa(port),
-			certificateFile, serverKeyFile, nil)
+	log.Println("serving at port", *portPtr)
+	if "" != *keyPtr {
+		err = http.ListenAndServeTLS(":"+strconv.Itoa(*portPtr),
+			*certPtr, *keyPtr, nil)
 	} else {
-		err = http.ListenAndServe(":"+strconv.Itoa(port), nil)
+		err = http.ListenAndServe(":"+strconv.Itoa(*portPtr), nil)
 	}
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)

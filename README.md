@@ -31,12 +31,9 @@ Configuring port number and TLS
 -------------------------------
 
 By default, htwtxt serves unencrypted HTTP over port 8000. But the executable
-accepts up to three optional arguments to change this:
-
-    $GOPATH/bin/htwtxt [PORT] [CERTIFICATE] [KEY]
-
-PORT is the port number to serve. CERTIFICATE and KEY are paths to the
-certificate and key files needed to run htwtxt as a HTTPS server.
+accepts the flag --port to provide an alternate port number, and the flags
+--cert and --key to provide paths to an SSL certificate and key file to run
+htwtxt as an HTTPS server.
 
 Copyright, license
 ------------------
