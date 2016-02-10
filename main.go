@@ -177,17 +177,17 @@ func accountPostHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	text = []byte(strings.Join(lines, "\n"))
-	tmpFile := "tmp_" + loginsPath
+	tmpFile := loginsPath + "_tmp"
 	if err := ioutil.WriteFile(tmpFile, []byte(text), 0600); err != nil {
 		log.Fatal("Trouble writing file", err)
 	}
-	if err := os.Rename(loginsPath, "_"+loginsFile); err != nil {
+	if err := os.Rename(loginsPath, loginsPath+"_"); err != nil {
 		log.Fatal("Trouble moving file", err)
 	}
 	if err := os.Rename(tmpFile, loginsPath); err != nil {
 		log.Fatal("Trouble moving file", err)
 	}
-	if err := os.Remove("_" + loginsPath); err != nil {
+	if err := os.Remove(loginsPath + "_"); err != nil {
 		log.Fatal("Trouble removing file", err)
 	}
 	execTemplate(w, "feedset.html", "")
