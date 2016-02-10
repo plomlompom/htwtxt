@@ -17,10 +17,11 @@ import "strings"
 import "time"
 
 const loginsFile = "logins.txt"
-const twtsDir = "feeds"
+const feedsDir = "feeds"
 
 var dataDir string
 var loginsPath string
+var feedsPath string
 var templ *template.Template
 
 func createFileIfNotExists(path string) {
@@ -223,11 +224,11 @@ func twtxtPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	text := r.FormValue("twt")
-	twtsFile := twtsDir + "/" + name
+	twtsFile := feedsPath + "/" + name
 	createFileIfNotExists(twtsFile)
 	text = strings.Replace(text, "\n", " ", -1)
 	appendToFile(twtsFile, time.Now().Format(time.RFC3339)+"\t"+text+"\n")
-	http.Redirect(w, r, "/"+twtsFile, 302)
+	http.Redirect(w, r, "/"+feedsDir+"/"+name, 302)
 }
 
 func twtxtHandler(w http.ResponseWriter, r *http.Request) {
@@ -236,7 +237,7 @@ func twtxtHandler(w http.ResponseWriter, r *http.Request) {
 		execTemplate(w, "error.html", "Bad path.")
 		return
 	}
-	path := twtsDir + "/" + name
+	path := feedsPath + "/" + name
 	if _, err := os.Stat(path); err != nil {
 		execTemplate(w, "error.html", "Empty twtxt for user.")
 		return
@@ -258,6 +259,7 @@ func main() {
 	log.Println("Using as templates dir:", *templDirPtr)
 	log.Println("Using as data dir:", dataDir)
 	loginsPath = dataDir + "/" + loginsFile
+	feedsPath = dataDir + "/" + feedsDir
 	if ("" == *keyPtr && "" != *certPtr) ||
 		("" != *keyPtr && "" == *certPtr) {
 		log.Fatal("Expect either both key and certificate or none.")
@@ -273,7 +275,7 @@ func main() {
 	}
 	createFileIfNotExists(loginsPath)
 	// TODO: Handle err here.
-	_ = os.Mkdir(twtsDir, 0700)
+	_ = os.Mkdir(feedsPath, 0700)
 	templ, err = template.New("main").ParseGlob(*templDirPtr + "/*.html")
 	if err != nil {
 		log.Fatal("Can't set up new template: ", err)
