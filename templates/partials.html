@@ -1,10 +1,38 @@
 {{ define "header" }}
-<html>
-    <a href="/">hosted twtxt server</a>
-    <hr />
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+	<title>hosted twtxt server</title>
+
+	<link rel="stylesheet" type="text/css" href="css/style.css" media="all" />
+
+</head>
+
+<body>
+
+	<header>
+		<h1><a href="/">hosted twtxt server</a></h1>
+	</header>
+
+	<nav>
+		<ul>
+			<li><a href="/feeds">Feeds</a></li>
+			<li><a href="/signup">Create account</a></li>
+			<li><a href="/account">Edit account</a></li>
+		</ul>
+	</nav>
 {{ end }}
 {{ define "footer" }}
-    <hr />
-    <p>This project is licensed under the <a href="http://www.gnu.org/licenses/agpl-3.0.html">AGPLv3</a>, source code <a href="https://github.com/plomlompom/htwtxt">here</a>.</p>
+	<footer>
+		<p>Licensed under <a href="http://www.gnu.org/licenses/agpl-3.0.html" rel="license">AGPLv3</a>. Source code on <a href="https://github.com/plomlompom/htwtxt">GitHub</a>.</p>
+	</footer>
+
+</body>
+
 </html>
 {{ end }}

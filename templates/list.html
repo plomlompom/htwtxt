@@ -1,8 +1,10 @@
 {{ template "header" }}
-    <h1>list of feeds</h1>
-    <ul>
-    {{ range .Dir }}
-        <li><a href="/feeds/{{ . }}">{{ . }}</a></li>
-    {{ end }}
-    </ul>
+<section>
+	<h2>Feeds</h2>
+	<ul>
+	{{ range .Dir }}
+		<li><a href="/feeds/{{ . }}">{{ . }}</a></li>
+	{{ end }}
+	</ul>
+</section>
 {{ template "footer" }}
