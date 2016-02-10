@@ -1,4 +1,4 @@
-<html>
+{{ template "header" }}
     <h1>sign up</h1>
     <form method="POST" action="/signup">
         Name: <input type="text" name="name" /> (only up to 140 legal chars: A-Z, a-z, 0-1, _)<br />
@@ -7,6 +7,4 @@
         E-mail: <input type="text" name="mail" /> (optional; stored internally to reach and/or identify you when there's trouble with your feed, you want to reset your password, etc.; in any such communication, communicating from an address provided here is a necessary condition for you to be treated as the owner of your feed)<br />
         <input type="submit" value="create" />
     </form>
-    <hr />
-    <p>This project is licensed under the <a href="http://www.gnu.org/licenses/agpl-3.0.html">AGPLv3</a>, source code <a href="https://github.com/plomlompom/htwtxt">here</a>.</p>
-</html>
+{{ template "footer" }}

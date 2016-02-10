@@ -4,6 +4,7 @@ package main
 
 import "bufio"
 import "errors"
+import "flag"
 import "github.com/gorilla/mux"
 import "golang.org/x/crypto/bcrypt"
 import "html/template"
@@ -16,10 +17,11 @@ import "strings"
 import "time"
 
 const loginsFile = "logins.txt"
-const twtsDir = "twtxt"
-const portDefault = 8000
+const feedsDir = "feeds"
 
-var useHttps bool
+var dataDir string
+var loginsPath string
+var feedsPath string
 var templ *template.Template
 
 func createFileIfNotExists(path string) {
@@ -66,7 +68,7 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 	name := r.FormValue("name")
 	pw := r.FormValue("password")
 	loginValid := false
-	file, err := os.Open(loginsFile)
+	file, err := os.Open(loginsPath)
 	defer file.Close()
 	if err != nil {
 		log.Fatal("Can't open file for reading", err)
@@ -107,7 +109,7 @@ func accountLine(w http.ResponseWriter, r *http.Request,
 		return "", errors.New("")
 	}
 	if checkDupl {
-		fileRead, err := os.Open(loginsFile)
+		fileRead, err := os.Open(loginsPath)
 		defer fileRead.Close()
 		if err != nil {
 			log.Fatal("Can't open file for reading", err)
@@ -145,7 +147,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	appendToFile(loginsFile, newLine+"\n")
+	appendToFile(loginsPath, newLine+"\n")
 	execTemplate(w, "feedset.html", "")
 }
 
@@ -162,7 +164,7 @@ func accountPostHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	text, err := ioutil.ReadFile(loginsFile)
+	text, err := ioutil.ReadFile(loginsPath)
 	if err != nil {
 		log.Fatal("Can't read file", err)
 	}
@@ -175,24 +177,24 @@ func accountPostHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	text = []byte(strings.Join(lines, "\n"))
-	tmpFile := "tmp_" + loginsFile
+	tmpFile := "tmp_" + loginsPath
 	if err := ioutil.WriteFile(tmpFile, []byte(text), 0600); err != nil {
 		log.Fatal("Trouble writing file", err)
 	}
-	if err := os.Rename(loginsFile, "_"+loginsFile); err != nil {
+	if err := os.Rename(loginsPath, "_"+loginsFile); err != nil {
 		log.Fatal("Trouble moving file", err)
 	}
-	if err := os.Rename(tmpFile, loginsFile); err != nil {
+	if err := os.Rename(tmpFile, loginsPath); err != nil {
 		log.Fatal("Trouble moving file", err)
 	}
-	if err := os.Remove("_" + loginsFile); err != nil {
+	if err := os.Remove("_" + loginsPath); err != nil {
 		log.Fatal("Trouble removing file", err)
 	}
 	execTemplate(w, "feedset.html", "")
 }
 
 func listHandler(w http.ResponseWriter, r *http.Request) {
-	file, err := os.Open(loginsFile)
+	file, err := os.Open(loginsPath)
 	defer file.Close()
 	if err != nil {
 		log.Fatal("Can't open file for reading", err)
@@ -222,11 +224,11 @@ func twtxtPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	text := r.FormValue("twt")
-	twtsFile := twtsDir + "/" + name
+	twtsFile := feedsPath + "/" + name
 	createFileIfNotExists(twtsFile)
 	text = strings.Replace(text, "\n", " ", -1)
 	appendToFile(twtsFile, time.Now().Format(time.RFC3339)+"\t"+text+"\n")
-	http.Redirect(w, r, "/"+twtsFile, 302)
+	http.Redirect(w, r, "/"+feedsDir+"/"+name, 302)
 }
 
 func twtxtHandler(w http.ResponseWriter, r *http.Request) {
@@ -235,7 +237,7 @@ func twtxtHandler(w http.ResponseWriter, r *http.Request) {
 		execTemplate(w, "error.html", "Bad path.")
 		return
 	}
-	path := twtsDir + "/" + name
+	path := feedsPath + "/" + name
 	if _, err := os.Stat(path); err != nil {
 		execTemplate(w, "error.html", "Empty twtxt for user.")
 		return
@@ -244,53 +246,57 @@ func twtxtHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	useHttps = false
-	port := portDefault
 	var err error
-	if len(os.Args) > 1 {
-		port, err = strconv.Atoi(os.Args[1])
-		if err != nil {
-			log.Fatal("Invalid port argument:", err)
-		}
+	portPtr := flag.Int("port", 8000, "port to serve")
+	keyPtr := flag.String("key", "", "SSL key file")
+	certPtr := flag.String("cert", "", "SSL certificate file")
+	templDirPtr := flag.String("templates",
+		os.Getenv("GOPATH")+"/src/htwtxt/templates",
+		"directory where to expect HTML templates")
+	flag.StringVar(&dataDir, "dir", os.Getenv("HOME")+"/htwtxt",
+		"directory to store feeds and login data")
+	flag.Parse()
+	log.Println("Using as templates dir:", *templDirPtr)
+	log.Println("Using as data dir:", dataDir)
+	loginsPath = dataDir + "/" + loginsFile
+	feedsPath = dataDir + "/" + feedsDir
+	if ("" == *keyPtr && "" != *certPtr) ||
+		("" != *keyPtr && "" == *certPtr) {
+		log.Fatal("Expect either both key and certificate or none.")
 	}
-	var certificateFile string
-	var serverKeyFile string
-	if len(os.Args) > 3 {
-		useHttps = true
-		log.Println("using TLS")
-		certificateFile = os.Args[2]
-		serverKeyFile = os.Args[3]
-		if _, err := os.Stat(certificateFile); err != nil {
+	if "" != *keyPtr {
+		log.Println("Using TLS.")
+		if _, err := os.Stat(*certPtr); err != nil {
 			log.Fatal("No certificate file found.")
 		}
-		if _, err := os.Stat(serverKeyFile); err != nil {
+		if _, err := os.Stat(*keyPtr); err != nil {
 			log.Fatal("No server key file found.")
 		}
 	}
-	createFileIfNotExists(loginsFile)
+	createFileIfNotExists(loginsPath)
 	// TODO: Handle err here.
-	_ = os.Mkdir(twtsDir, 0700)
-	templ, err = template.New("main").ParseGlob("./templates/*.html")
+	_ = os.Mkdir(feedsPath, 0700)
+	templ, err = template.New("main").ParseGlob(*templDirPtr + "/*.html")
 	if err != nil {
 		log.Fatal("Can't set up new template: ", err)
 	}
 	router := mux.NewRouter()
 	router.HandleFunc("/", indexHandler)
-	router.HandleFunc("/twtxt", listHandler).Methods("GET")
-	router.HandleFunc("/twtxt/", listHandler)
+	router.HandleFunc("/feeds", listHandler).Methods("GET")
+	router.HandleFunc("/feeds/", listHandler)
 	router.HandleFunc("/account", accountFormHandler).Methods("GET")
 	router.HandleFunc("/account", accountPostHandler).Methods("POST")
 	router.HandleFunc("/signup", signUpFormHandler).Methods("GET")
 	router.HandleFunc("/signup", signUpHandler).Methods("POST")
-	router.HandleFunc("/twtxt", twtxtPostHandler).Methods("POST")
-	router.HandleFunc("/twtxt/{name}", twtxtHandler)
+	router.HandleFunc("/feeds", twtxtPostHandler).Methods("POST")
+	router.HandleFunc("/feeds/{name}", twtxtHandler)
 	http.Handle("/", router)
-	log.Println("serving at port", port)
-	if useHttps {
-		err = http.ListenAndServeTLS(":"+strconv.Itoa(port),
-			certificateFile, serverKeyFile, nil)
+	log.Println("serving at port", *portPtr)
+	if "" != *keyPtr {
+		err = http.ListenAndServeTLS(":"+strconv.Itoa(*portPtr),
+			*certPtr, *keyPtr, nil)
 	} else {
-		err = http.ListenAndServe(":"+strconv.Itoa(port), nil)
+		err = http.ListenAndServe(":"+strconv.Itoa(*portPtr), nil)
 	}
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
