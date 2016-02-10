@@ -1,8 +1,6 @@
-htwtxt – hosted twtxt server
-============================
+# htwtxt – hosted twtxt server
 
-Rationale
----------
+## Rationale
 
 [*twtxt*](https://github.com/buckket/twtxt) is a protocol and client for
 decentralized microblogging. Users are expected to provide their feeds as plain
@@ -10,8 +8,27 @@ text files with URLs accessible over the Internet. *htwtxt* is a web server to
 host and grow such text files for users without trivial access to their own web
 space.
 
-Clone, build, run
------------------
+## Set up and run
+
+### Set up Go development environment
+
+With htwtxt written in Go, the setup instructions below expect a Go development
+environment – with a somewhat current [go tool](https://golang.org/cmd/go/)
+installed, and a `$GOPATH` set. If your system does not have such an
+environment, here's some hints on what could possibly work on your system to set
+it up:
+
+    wget https://storage.googleapis.com/golang/go1.5.3.linux-amd64.tar.gz
+    sudo tar -C /usr/local -xzf go1.5.3.linux-amd64.tar.gz
+    export GOPATH=~/go
+    export PATH=$PATH:/usr/local/go/bin
+
+(You might want to add the last two lines to your `.bashrc` or whatever usually
+initializes your environment variables. And you might want to replace the
+package pulled by wget by whatever is the newest stable release of Go
+available.)
+
+### Clone, build, run
 
 With htwtxt written in Go, the following instructions expect a Go development
 environment with [the go tool](https://golang.org/cmd/go/) installed, and the 
@@ -25,16 +42,33 @@ environment with [the go tool](https://golang.org/cmd/go/) installed, and the
 This will build and start the server, which will store login and feed data below
 `~/htwtxt`. An alternate directory may be specified with the `--dir` flag.
 
-Configuring port number and TLS
--------------------------------
+## Tweaking
+
+### Configuring port number and TLS
 
 By default, htwtxt serves unencrypted HTTP over port 8000. But the executable
 accepts the flag `--port` to provide an alternate port number, and the flags
 `--cert` and `--key` to provide paths to an SSL certificate and key file to run
 htwtxt as an HTTPS server.
 
-Copyright, license
-------------------
+You might encounter the following issue when trying to set a low port number
+(such as the HTTP standard 80, or the HTTPS standard 443):
+
+    ListenAndServe: listen tcp :80: bind: permission denied
+
+This is [a common privilege problem](http://stackoverflow.com/q/413807) and
+[might be solved](http://stackoverflow.com/a/414258) bis this:
+
+    sudo setcap 'cap_net_bind_service=+ep' $GOPATH/bin/htwtxt
+
+### Templates
+
+By default, HTML templates are read out of the directory
+`$GOPATH/src/htwtxt/templates`. An alternate path can be given with the flag
+`--templates` (the alternate directory should, however, contain template files
+of the same names as the default ones).
+
+## Copyright, license
 
 htwtxt (c) 2016 Christian Heller a.k.a. plomlompom
 
