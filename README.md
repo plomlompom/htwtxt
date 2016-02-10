@@ -15,8 +15,7 @@ space.
 With htwtxt written in Go, the setup instructions below expect a Go development
 environment – with a somewhat current [go tool](https://golang.org/cmd/go/)
 installed, and a `$GOPATH` set. If your system does not have such an
-environment, here's some hints on what could possibly work on your system to set
-it up:
+environment, here's some hints on how to set it up:
 
     wget https://storage.googleapis.com/golang/go1.5.3.linux-amd64.tar.gz
     sudo tar -C /usr/local -xzf go1.5.3.linux-amd64.tar.gz
@@ -61,10 +60,9 @@ This is [a common privilege problem](http://stackoverflow.com/q/413807) and
 
 ### Templates
 
-By default, HTML templates are read out of the directory
-`$GOPATH/src/htwtxt/templates`. An alternate path can be given with the flag
-`--templates` (the alternate directory should, however, contain template files
-of the same names as the default ones).
+By default, HTML templates are read out of `$GOPATH/src/htwtxt/templates/`. An
+alternate directory can be given with the flag `--templates` (it should contain
+template files of the same names as the default ones, however).
 
 ## Copyright, license
 
