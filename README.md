@@ -8,6 +8,12 @@ text files with URLs accessible over the Internet. *htwtxt* is a web server to
 host and grow such text files for users without trivial access to their own web
 space.
 
+## Online demo
+
+A demo instance with frequent downtimes can be tested at
+[http://test.plomlompom.com:8000]. (Don't expect any of its feeds' URLs to be
+stable. It's just for testing, and data frequently gets deleted.)
+
 ## Setup and run
 
 ### Setup Go build environment
