@@ -1,12 +1,27 @@
 {{ template "header" }}
-    <h1>publish a twtxt</h1>
-    <form method="POST" action="feeds">
-        Message: <input type="text" name="twt" size="140" /><br />
-        Name: <input type="text" name="name" />
-        Password: <input type="password" name="password" /><br />
-        <input type="submit" value="twtxt" />
-    </form>
-    No feed yet? <a href="/signup">Create one!</a><br />
-    Also, check out <a href="/feeds">other people's feeds</a> …<br />
-    Or <a href="/account">edit your account settings</a>.
+<form method="post" action="feeds">
+	<fieldset>
+		<legend>Send tweet</legend>
+
+		<div>
+			<label for="twt">Message</label>
+			<input type="text" id="twt" name="twt" maxlength="140" placeholder="What’s happening?" aria-describedby="txt-desc" required />
+			<p id="txt-desc"><abbr title="Maximum">Max.</abbr> 140 characters</p>
+		</div>
+
+		<div>
+			<label for="name">Name</label>
+			<input type="text" id="name" name="name" required />
+		</div>
+		
+		<div>
+			<label for="password">Password</label>
+			<input type="password" id="password" name="password" required />
+		</div>
+
+		<hr />
+
+		<button type="submit">Publish</button>
+	</fieldset>
+</form>
 {{ template "footer" }}

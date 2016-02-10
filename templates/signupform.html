@@ -1,10 +1,33 @@
 {{ template "header" }}
-    <h1>sign up</h1>
-    <form method="POST" action="/signup">
-        Name: <input type="text" name="name" /> (only up to 140 legal chars: A-Z, a-z, 0-1, _)<br />
-        Password: <input type="password" name="new_password" /><br />
-        Password (repeat): <input type="password" name="new_password2" /><br />
-        E-mail: <input type="text" name="mail" /> (optional; stored internally to reach and/or identify you when there's trouble with your feed, you want to reset your password, etc.; in any such communication, communicating from an address provided here is a necessary condition for you to be treated as the owner of your feed)<br />
-        <input type="submit" value="create" />
-    </form>
+<form method="post" action="feeds">
+	<fieldset>
+		<legend>Create account</legend>
+
+		<div>
+			<label for="name">Name</label>
+			<input type="text" id="name" name="name" maxlength="140" aria-describedby="name-rules" pattern="[a-zA-Z0-9_]{1,140}" required />
+			<p id="name-desc">Legal characters: A-Z, a-z, 0-9, _ (<abbr title="maximum">max.</abbr> 140)</p>
+		</div>
+
+		<div>
+			<label for="mail">E-mail address <span>(optional)</span></label>
+			<input type="email" id="mail" name="mail" aria-describedby="mail-desc"/>
+			<p id="mail-desc">Used for password reset and feed owner authentication.</p>
+		</div>
+		
+		<div>
+			<label for="password">Password</label>
+			<input type="password" id="password" name="new_password" required />
+		</div>
+
+		<div>
+			<label for="password2">Password <span>(repeat)</span></label>
+			<input type="password" id="password2" name="new_password2" required />
+		</div>
+
+		<hr />
+		
+		<button type="submit">Sign up</button>
+	</fieldset>
+</form>
 {{ template "footer" }}
