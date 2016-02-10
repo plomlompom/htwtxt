@@ -64,7 +64,7 @@ This is [a common privilege problem](http://stackoverflow.com/q/413807) and
 
     sudo setcap 'cap_net_bind_service=+ep' $GOPATH/bin/htwtxt
 
-### Templates
+### Changing HTML templates
 
 By default, HTML templates are read out of `$GOPATH/src/htwtxt/templates/`. An
 alternate directory can be given with the flag `--templates` (it should contain
