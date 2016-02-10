@@ -8,9 +8,9 @@ text files with URLs accessible over the Internet. *htwtxt* is a web server to
 host and grow such text files for users without trivial access to their own web
 space.
 
-## Set up and run
+## Setup and run
 
-### Set up Go development environment
+### Setup Go build environment
 
 With htwtxt written in Go, the setup instructions below expect a Go development
 environment – with a somewhat current [go tool](https://golang.org/cmd/go/)
@@ -30,9 +30,7 @@ available.)
 
 ### Clone, build, run
 
-With htwtxt written in Go, the following instructions expect a Go development
-environment with [the go tool](https://golang.org/cmd/go/) installed, and the 
-`$GOPATH` set:
+Once your Go build environment is ready, do this:
 
     git clone https://github.com/plomlompom/htwtxt $GOPATH/src/htwtxt
     go get htwtxt
