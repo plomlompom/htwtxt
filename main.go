@@ -22,6 +22,7 @@ const feedsDir = "feeds"
 var dataDir string
 var loginsPath string
 var feedsPath string
+var templPath string
 var templ *template.Template
 
 func createFileIfNotExists(path string) {
@@ -132,6 +133,10 @@ func accountLine(w http.ResponseWriter, r *http.Request,
 		log.Fatal("Can't generate password hash", err)
 	}
 	return name + " " + string(hash) + " " + mail, nil
+}
+
+func cssHandler(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, templPath+"/style.css")
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
@@ -250,13 +255,13 @@ func main() {
 	portPtr := flag.Int("port", 8000, "port to serve")
 	keyPtr := flag.String("key", "", "SSL key file")
 	certPtr := flag.String("cert", "", "SSL certificate file")
-	templDirPtr := flag.String("templates",
+	flag.StringVar(&templPath, "templates",
 		os.Getenv("GOPATH")+"/src/htwtxt/templates",
 		"directory where to expect HTML templates")
 	flag.StringVar(&dataDir, "dir", os.Getenv("HOME")+"/htwtxt",
 		"directory to store feeds and login data")
 	flag.Parse()
-	log.Println("Using as templates dir:", *templDirPtr)
+	log.Println("Using as templates dir:", templPath)
 	log.Println("Using as data dir:", dataDir)
 	loginsPath = dataDir + "/" + loginsFile
 	feedsPath = dataDir + "/" + feedsDir
@@ -276,7 +281,7 @@ func main() {
 	createFileIfNotExists(loginsPath)
 	// TODO: Handle err here.
 	_ = os.Mkdir(feedsPath, 0700)
-	templ, err = template.New("main").ParseGlob(*templDirPtr + "/*.html")
+	templ, err = template.New("main").ParseGlob(templPath + "/*.html")
 	if err != nil {
 		log.Fatal("Can't set up new template: ", err)
 	}
@@ -291,11 +296,7 @@ func main() {
 	router.HandleFunc("/feeds", twtxtPostHandler).Methods("POST")
 	router.HandleFunc("/feeds/{name}", twtxtHandler)
 	router.HandleFunc("/feeds/{name}", twtxtHandler)
-	router.HandleFunc("/style.css",
-		func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, *templDirPtr+"/css/style.css")
-		})
-
+	router.HandleFunc("/style.css", cssHandler)
 	http.Handle("/", router)
 	log.Println("serving at port", *portPtr)
 	if "" != *keyPtr {
