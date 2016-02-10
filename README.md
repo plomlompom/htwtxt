@@ -11,8 +11,8 @@ space.
 ## Online demo
 
 A demo instance with frequent downtimes can be tested at
-[http://test.plomlompom.com:8000]. (Don't expect any of its feeds' URLs to be
-stable. It's just for testing, and data frequently gets deleted.)
+http://test.plomlompom.com:8000 – don't expect any of its feeds' URLs to be
+stable. It's just for testing, and data frequently gets deleted.
 
 ## Setup and run
 
