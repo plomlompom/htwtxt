@@ -290,6 +290,12 @@ func main() {
 	router.HandleFunc("/signup", signUpHandler).Methods("POST")
 	router.HandleFunc("/feeds", twtxtPostHandler).Methods("POST")
 	router.HandleFunc("/feeds/{name}", twtxtHandler)
+	router.HandleFunc("/feeds/{name}", twtxtHandler)
+	router.HandleFunc("/css/style.css",
+		func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, *templDirPtr+"/css/style.css")
+		})
+
 	http.Handle("/", router)
 	log.Println("serving at port", *portPtr)
 	if "" != *keyPtr {
