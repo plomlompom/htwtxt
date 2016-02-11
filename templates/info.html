@@ -1,0 +1,8 @@
+{{ template "header" }}
+<section>
+	<h2>About this site</h2>
+    <p>This site is a web server to host and grow <a href="https://github.com/buckket/twtxt">twtxt</a> feeds for users without trivial access to their own web space.</p>
+    <p>Its operator gives no guarantees regarding long-term availability of feeds, stability of their paths, or quality and integrity of their contents. If that does not satisfy your needs, consider hosting your own instance: The underlying server software <a href="https://github.com/plomlompom/htwtxt">htwtxt</a> is freely available, and should not be too difficult to set up.</p>
+    <p>Site operator's contact info: {{ .Msg }}</p>
+</section>
+{{ template "footer" }}

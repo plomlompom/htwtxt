@@ -70,6 +70,11 @@ By default, HTML templates are read out of `$GOPATH/src/htwtxt/templates/`. An
 alternate directory can be given with the flag `--templates` (it should contain
 template files of the same names as the default ones, however).
 
+### Setting site owner contact info
+
+The server serves a `/info` page (from the `info.html` template) that may
+include the site owner's contact info, as given with the `--info` flag.
+
 ## Copyright, license
 
 htwtxt (c) 2016 Christian Heller a.k.a. plomlompom

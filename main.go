@@ -24,6 +24,7 @@ var loginsPath string
 var feedsPath string
 var templPath string
 var templ *template.Template
+var contactString string
 
 func createFileIfNotExists(path string) {
 	if _, err := os.Stat(path); err != nil {
@@ -143,6 +144,10 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	execTemplate(w, "index.html", "")
 }
 
+func infoHandler(w http.ResponseWriter, r *http.Request) {
+	execTemplate(w, "info.html", contactString)
+}
+
 func signUpFormHandler(w http.ResponseWriter, r *http.Request) {
 	execTemplate(w, "signupform.html", "")
 }
@@ -260,6 +265,9 @@ func main() {
 		"directory where to expect HTML templates")
 	flag.StringVar(&dataDir, "dir", os.Getenv("HOME")+"/htwtxt",
 		"directory to store feeds and login data")
+	flag.StringVar(&contactString, "contact",
+		"[operator passed no contact info to server]",
+		"operator contact info to display on info page")
 	flag.Parse()
 	log.Println("Using as templates dir:", templPath)
 	log.Println("Using as data dir:", dataDir)
@@ -296,6 +304,7 @@ func main() {
 	router.HandleFunc("/feeds", twtxtPostHandler).Methods("POST")
 	router.HandleFunc("/feeds/{name}", twtxtHandler)
 	router.HandleFunc("/feeds/{name}", twtxtHandler)
+	router.HandleFunc("/info", infoHandler)
 	router.HandleFunc("/style.css", cssHandler)
 	http.Handle("/", router)
 	log.Println("serving at port", *portPtr)
