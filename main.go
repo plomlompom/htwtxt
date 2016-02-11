@@ -218,7 +218,8 @@ func accountLine(w http.ResponseWriter, r *http.Request,
 	mail := r.FormValue("mail")
 	if 0 != strings.Compare(pw, pw2) || 0 == strings.Compare("name", "") ||
 		0 == strings.Compare(pw, "") || !onlyLegalRunes(name) ||
-		len(name) > 140 {
+		len(name) > 140 || len(mail) > 140 ||
+		strings.ContainsRune(mail, '\n') {
 		execTemplate(w, "error.html", "Invalid values.")
 		return "", errors.New("")
 	}
