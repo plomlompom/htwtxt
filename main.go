@@ -10,6 +10,7 @@ import "golang.org/x/crypto/bcrypt"
 import "html/template"
 import "io/ioutil"
 import "log"
+import "net"
 import "net/http"
 import "os"
 import "strconv"
@@ -18,14 +19,52 @@ import "time"
 
 const loginsFile = "logins.txt"
 const feedsDir = "feeds"
+const ipDelaysFile = "ip_delays.txt"
 
 var dataDir string
 var loginsPath string
+var ipDelaysPath string
 var feedsPath string
 var templPath string
 var templ *template.Template
 var contactString string
 var signupOpen bool
+
+func writeAtomic(path, text string, mode os.FileMode) {
+	tmpFile := path + "_tmp"
+	if err := ioutil.WriteFile(tmpFile, []byte(text), mode); err != nil {
+		log.Fatal("Trouble writing file", err)
+	}
+	if err := os.Rename(path, path+"_"); err != nil {
+		log.Fatal("Trouble moving file", err)
+	}
+	if err := os.Rename(tmpFile, path); err != nil {
+		log.Fatal("Trouble moving file", err)
+	}
+	if err := os.Remove(path + "_"); err != nil {
+		log.Fatal("Trouble removing file", err)
+	}
+}
+
+func writeLinesAtomic(path string, lines []string, mode os.FileMode) {
+	writeAtomic(path, strings.Join(lines, "\n"), mode)
+}
+
+func readFile(path string) string {
+	text, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.Fatal("Can't read file", err)
+	}
+	return string(text)
+}
+
+func linesFromFile(path string) []string {
+	text, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.Fatal("Can't read file", err)
+	}
+	return strings.Split(string(text), "\n")
+}
 
 func createFileIfNotExists(path string) {
 	if _, err := os.Stat(path); err != nil {
@@ -37,15 +76,10 @@ func createFileIfNotExists(path string) {
 	}
 }
 
-func appendToFile(path string, msg string) {
-	fileWrite, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0600)
-	defer fileWrite.Close()
-	if err != nil {
-		log.Fatal("Can't open file for appending", err)
-	}
-	if _, err = fileWrite.WriteString(msg); err != nil {
-		log.Fatal("Can't write to file", err)
-	}
+func appendToFile(path string, msg string, mode os.FileMode) {
+	text := readFile(path)
+	text = text + msg
+	writeAtomic(path, text, mode)
 }
 
 func onlyLegalRunes(str string) bool {
@@ -67,32 +101,96 @@ func execTemplate(w http.ResponseWriter, file string, input string) {
 	}
 }
 
+func openFile(path string) *os.File {
+	file, err := os.Open(path)
+	if err != nil {
+		file.Close()
+		log.Fatal("Can't open file for reading", err)
+	}
+	return file
+}
+
+func tokensFromLine(scanner *bufio.Scanner, nTokensExpected int) []string {
+	if !scanner.Scan() {
+		return []string{}
+	}
+	line := scanner.Text()
+	tokens := strings.Split(line, " ")
+	if len(tokens) != nTokensExpected {
+		log.Fatal("Line in file had unexpected number of tokens")
+	}
+	return tokens
+}
+
+func checkDelay(w http.ResponseWriter, ip string) (int, int, error) {
+	var err error
+	var openTime, delay, lineNumber int
+	fileIpDelays := openFile(ipDelaysPath)
+	defer fileIpDelays.Close()
+	scanner := bufio.NewScanner(bufio.NewReader(fileIpDelays))
+	tokens := tokensFromLine(scanner, 3)
+	for 3 == len(tokens) {
+		if 0 == strings.Compare(tokens[0], ip) {
+			openTime, err = strconv.Atoi(tokens[1])
+			if err != nil {
+				log.Fatal("Can't parse IP delays file", err)
+			}
+			delay, err = strconv.Atoi(tokens[2])
+			if err != nil {
+				log.Fatal("Can't parse IP delays file", err)
+			}
+			if int(time.Now().Unix()) < openTime {
+				execTemplate(w, "error.html",
+					"This IP must wait a while for its "+
+						"next POST request.")
+				err = errors.New("")
+			}
+			break
+		}
+		tokens = tokensFromLine(scanner, 3)
+	}
+	return delay, lineNumber, err
+}
+
 func login(w http.ResponseWriter, r *http.Request) (string, error) {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		log.Fatal("Can't parse ip from request", err)
+	}
+	delay, lineNumber, err := checkDelay(w, ip)
+	if err != nil {
+		return "", err
+	}
 	name := r.FormValue("name")
 	pw := r.FormValue("password")
 	loginValid := false
-	file, err := os.Open(loginsPath)
-	defer file.Close()
-	if err != nil {
-		log.Fatal("Can't open file for reading", err)
-	}
-	scanner := bufio.NewScanner(bufio.NewReader(file))
-	for {
-		if !scanner.Scan() {
-			break
+	fileLogins := openFile(loginsPath)
+	defer fileLogins.Close()
+	scanner := bufio.NewScanner(bufio.NewReader(fileLogins))
+	tokens := tokensFromLine(scanner, 3)
+	for 0 != len(tokens) {
+		if 0 == strings.Compare(tokens[0], name) &&
+			nil == bcrypt.CompareHashAndPassword([]byte(tokens[1]),
+				[]byte(pw)) {
+			loginValid = true
+			lines := linesFromFile(ipDelaysPath)
+			lines = append(lines[:lineNumber],
+				lines[lineNumber+1:]...)
+			writeLinesAtomic(ipDelaysPath, lines, 0600)
 		}
-		line := scanner.Text()
-		tokens := strings.Split(line, " ")
-		if len(tokens) == 3 {
-			if 0 == strings.Compare(tokens[0], name) &&
-				nil == bcrypt.CompareHashAndPassword(
-					[]byte(tokens[1]), []byte(pw)) {
-				loginValid = true
-
-			}
-		}
+		tokens = tokensFromLine(scanner, 3)
 	}
 	if !loginValid {
+		delay = 2 * delay
+		if 0 == delay {
+			delay = 3
+		}
+		strOpenTime := strconv.Itoa(int(time.Now().Unix()) + delay)
+		strDelay := strconv.Itoa(delay)
+		line := ip + " " + strOpenTime + " " + strDelay
+		lines := linesFromFile(ipDelaysPath)
+		lines[lineNumber] = line
+		writeLinesAtomic(ipDelaysPath, lines, 0600)
 		execTemplate(w, "error.html", "Bad login.")
 		return name, errors.New("")
 	}
@@ -112,22 +210,16 @@ func accountLine(w http.ResponseWriter, r *http.Request,
 		return "", errors.New("")
 	}
 	if checkDupl {
-		fileRead, err := os.Open(loginsPath)
+		fileRead := openFile(loginsPath)
 		defer fileRead.Close()
-		if err != nil {
-			log.Fatal("Can't open file for reading", err)
-		}
 		scanner := bufio.NewScanner(bufio.NewReader(fileRead))
-		for {
-			if !scanner.Scan() {
-				break
-			}
-			line := scanner.Text()
-			tokens := strings.Split(line, " ")
+		tokens := tokensFromLine(scanner, 3)
+		for 0 != len(tokens) {
 			if 0 == strings.Compare(name, tokens[0]) {
 				execTemplate(w, "error.html", "Username taken.")
 				return "", errors.New("")
 			}
+			tokens = tokensFromLine(scanner, 3)
 		}
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
@@ -167,7 +259,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	appendToFile(loginsPath, newLine+"\n")
+	appendToFile(loginsPath, newLine+"\n", 0600)
 	execTemplate(w, "feedset.html", "")
 }
 
@@ -184,11 +276,7 @@ func accountPostHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	text, err := ioutil.ReadFile(loginsPath)
-	if err != nil {
-		log.Fatal("Can't read file", err)
-	}
-	lines := strings.Split(string(text), "\n")
+	lines := linesFromFile(loginsPath)
 	for i, line := range lines {
 		tokens := strings.Split(line, " ")
 		if 0 == strings.Compare(name, tokens[0]) {
@@ -196,43 +284,22 @@ func accountPostHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-	text = []byte(strings.Join(lines, "\n"))
-	tmpFile := loginsPath + "_tmp"
-	if err := ioutil.WriteFile(tmpFile, []byte(text), 0600); err != nil {
-		log.Fatal("Trouble writing file", err)
-	}
-	if err := os.Rename(loginsPath, loginsPath+"_"); err != nil {
-		log.Fatal("Trouble moving file", err)
-	}
-	if err := os.Rename(tmpFile, loginsPath); err != nil {
-		log.Fatal("Trouble moving file", err)
-	}
-	if err := os.Remove(loginsPath + "_"); err != nil {
-		log.Fatal("Trouble removing file", err)
-	}
+	writeLinesAtomic(loginsPath, lines, 0600)
 	execTemplate(w, "feedset.html", "")
 }
 
 func listHandler(w http.ResponseWriter, r *http.Request) {
-	file, err := os.Open(loginsPath)
+	file := openFile(loginsPath)
 	defer file.Close()
-	if err != nil {
-		log.Fatal("Can't open file for reading", err)
-	}
 	scanner := bufio.NewScanner(bufio.NewReader(file))
 	var dir []string
-	for {
-		if !scanner.Scan() {
-			break
-		}
-		line := scanner.Text()
-		tokens := strings.Split(line, " ")
-		if len(tokens) == 3 {
-			dir = append(dir, tokens[0])
-		}
+	tokens := tokensFromLine(scanner, 3)
+	for 0 != len(tokens) {
+		dir = append(dir, tokens[0])
+		tokens = tokensFromLine(scanner, 3)
 	}
 	type data struct{ Dir []string }
-	err = templ.ExecuteTemplate(w, "list.html", data{Dir: dir})
+	err := templ.ExecuteTemplate(w, "list.html", data{Dir: dir})
 	if err != nil {
 		log.Fatal("Trouble executing template", err)
 	}
@@ -247,7 +314,8 @@ func twtxtPostHandler(w http.ResponseWriter, r *http.Request) {
 	twtsFile := feedsPath + "/" + name
 	createFileIfNotExists(twtsFile)
 	text = strings.Replace(text, "\n", " ", -1)
-	appendToFile(twtsFile, time.Now().Format(time.RFC3339)+"\t"+text+"\n")
+	appendToFile(twtsFile, time.Now().Format(time.RFC3339)+"\t"+text+"\n",
+		0600)
 	http.Redirect(w, r, "/"+feedsDir+"/"+name, 302)
 }
 
@@ -285,6 +353,7 @@ func main() {
 	log.Println("Using as data dir:", dataDir)
 	loginsPath = dataDir + "/" + loginsFile
 	feedsPath = dataDir + "/" + feedsDir
+	ipDelaysPath = dataDir + "/" + ipDelaysFile
 	if ("" == *keyPtr && "" != *certPtr) ||
 		("" != *keyPtr && "" == *certPtr) {
 		log.Fatal("Expect either both key and certificate or none.")
@@ -299,6 +368,7 @@ func main() {
 		}
 	}
 	createFileIfNotExists(loginsPath)
+	createFileIfNotExists(ipDelaysPath)
 	// TODO: Handle err here.
 	_ = os.Mkdir(feedsPath, 0700)
 	templ, err = template.New("main").ParseGlob(templPath + "/*.html")
@@ -314,7 +384,6 @@ func main() {
 	router.HandleFunc("/signup", signUpFormHandler).Methods("GET")
 	router.HandleFunc("/signup", signUpHandler).Methods("POST")
 	router.HandleFunc("/feeds", twtxtPostHandler).Methods("POST")
-	router.HandleFunc("/feeds/{name}", twtxtHandler)
 	router.HandleFunc("/feeds/{name}", twtxtHandler)
 	router.HandleFunc("/info", infoHandler)
 	router.HandleFunc("/style.css", cssHandler)
