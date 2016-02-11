@@ -47,7 +47,7 @@ func writeAtomic(path, text string, mode os.FileMode) {
 }
 
 func writeLinesAtomic(path string, lines []string, mode os.FileMode) {
-	writeAtomic(path, strings.Join(lines, "\n"), mode)
+	writeAtomic(path, strings.Join(lines, "\n")+"\n", mode)
 }
 
 func readFile(path string) string {
@@ -177,10 +177,12 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 			nil == bcrypt.CompareHashAndPassword([]byte(tokens[1]),
 				[]byte(pw)) {
 			loginValid = true
-			lines := linesFromFile(ipDelaysPath)
-			lines = append(lines[:lineNumber],
-				lines[lineNumber+1:]...)
-			writeLinesAtomic(ipDelaysPath, lines, 0600)
+			if 0 <= lineNumber {
+				lines := linesFromFile(ipDelaysPath)
+				lines = append(lines[:lineNumber],
+					lines[lineNumber+1:]...)
+				writeLinesAtomic(ipDelaysPath, lines, 0600)
+			}
 		}
 		tokens = tokensFromLine(scanner, 3)
 	}
