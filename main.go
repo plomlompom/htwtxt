@@ -63,6 +63,9 @@ func linesFromFile(path string) []string {
 	if err != nil {
 		log.Fatal("Can't read file", err)
 	}
+	if string(text) == "" {
+		return []string{}
+	}
 	return strings.Split(string(text), "\n")
 }
 
@@ -125,6 +128,7 @@ func tokensFromLine(scanner *bufio.Scanner, nTokensExpected int) []string {
 func checkDelay(w http.ResponseWriter, ip string) (int, int, error) {
 	var err error
 	var openTime, delay, lineNumber int
+	lineNumber = -1
 	fileIpDelays := openFile(ipDelaysPath)
 	defer fileIpDelays.Close()
 	scanner := bufio.NewScanner(bufio.NewReader(fileIpDelays))
@@ -183,13 +187,17 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 	if !loginValid {
 		delay = 2 * delay
 		if 0 == delay {
-			delay = 3
+			delay = 1
 		}
 		strOpenTime := strconv.Itoa(int(time.Now().Unix()) + delay)
 		strDelay := strconv.Itoa(delay)
 		line := ip + " " + strOpenTime + " " + strDelay
 		lines := linesFromFile(ipDelaysPath)
-		lines[lineNumber] = line
+		if -1 == lineNumber {
+			lines = append(lines, line)
+		} else {
+			lines[lineNumber] = line
+		}
 		writeLinesAtomic(ipDelaysPath, lines, 0600)
 		execTemplate(w, "error.html", "Bad login.")
 		return name, errors.New("")
