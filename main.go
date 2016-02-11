@@ -25,6 +25,7 @@ var feedsPath string
 var templPath string
 var templ *template.Template
 var contactString string
+var signupOpen bool
 
 func createFileIfNotExists(path string) {
 	if _, err := os.Stat(path); err != nil {
@@ -149,10 +150,19 @@ func infoHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func signUpFormHandler(w http.ResponseWriter, r *http.Request) {
+	if !signupOpen {
+		execTemplate(w, "nosignup.html", "")
+		return
+	}
 	execTemplate(w, "signupform.html", "")
 }
 
 func signUpHandler(w http.ResponseWriter, r *http.Request) {
+	if !signupOpen {
+		execTemplate(w, "error.html",
+			"Account creation currently not allowed.")
+		return
+	}
 	newLine, err := accountLine(w, r, true)
 	if err != nil {
 		return
@@ -268,6 +278,8 @@ func main() {
 	flag.StringVar(&contactString, "contact",
 		"[operator passed no contact info to server]",
 		"operator contact info to display on info page")
+	flag.BoolVar(&signupOpen, "signup", false,
+		"enable on-site account creation")
 	flag.Parse()
 	log.Println("Using as templates dir:", templPath)
 	log.Println("Using as data dir:", dataDir)

@@ -64,16 +64,21 @@ This is [a common privilege problem](http://stackoverflow.com/q/413807) and
 
     sudo setcap 'cap_net_bind_service=+ep' $GOPATH/bin/htwtxt
 
-### Changing HTML templates
+### Opening up sign-up
 
-By default, HTML templates are read out of `$GOPATH/src/htwtxt/templates/`. An
-alternate directory can be given with the flag `--templates` (it should contain
-template files of the same names as the default ones, however).
+By default, sign up / account creation is not open to the public. The `--signup`
+flag must be set explicitely to change that.
 
 ### Setting site owner contact info
 
 The server serves a `/info` page (from the `info.html` template) that may
 include the site owner's contact info, as given with the `--info` flag.
+
+### Changing HTML templates
+
+By default, HTML templates are read out of `$GOPATH/src/htwtxt/templates/`. An
+alternate directory can be given with the flag `--templates` (it should contain
+template files of the same names as the default ones, however).
 
 ## Copyright, license
 
