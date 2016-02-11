@@ -148,7 +148,7 @@ func checkDelay(w http.ResponseWriter, ip string) (int, int, error) {
 			if int(time.Now().Unix()) < openTime {
 				execTemplate(w, "error.html",
 					"This IP must wait a while for its "+
-						"next POST request.")
+						"next login attempt.")
 				err = errors.New("")
 			}
 			lineNumber = lineCounter
