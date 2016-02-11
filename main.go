@@ -127,14 +127,15 @@ func tokensFromLine(scanner *bufio.Scanner, nTokensExpected int) []string {
 
 func checkDelay(w http.ResponseWriter, ip string) (int, int, error) {
 	var err error
-	var openTime, delay, lineNumber int
-	lineNumber = -1
+	var openTime, delay, lineNumber, lineCounter int
 	fileIpDelays := openFile(ipDelaysPath)
 	defer fileIpDelays.Close()
 	scanner := bufio.NewScanner(bufio.NewReader(fileIpDelays))
 	tokens := tokensFromLine(scanner, 3)
+	lineNumber = -1
+	lineCounter = -1
 	for 3 == len(tokens) {
-		lineNumber += 1
+		lineCounter += 1
 		if 0 == strings.Compare(tokens[0], ip) {
 			openTime, err = strconv.Atoi(tokens[1])
 			if err != nil {
@@ -150,6 +151,7 @@ func checkDelay(w http.ResponseWriter, ip string) (int, int, error) {
 						"next POST request.")
 				err = errors.New("")
 			}
+			lineNumber = lineCounter
 			break
 		}
 		tokens = tokensFromLine(scanner, 3)
@@ -163,7 +165,6 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 		log.Fatal("Can't parse ip from request", err)
 	}
 	delay, lineNumber, err := checkDelay(w, ip)
-	log.Println(lineNumber)
 	if err != nil {
 		return "", err
 	}
