@@ -47,7 +47,7 @@ func writeAtomic(path, text string, mode os.FileMode) {
 }
 
 func writeLinesAtomic(path string, lines []string, mode os.FileMode) {
-	writeAtomic(path, strings.Join(lines, "\n")+"\n", mode)
+	writeAtomic(path, strings.Join(lines, "\n"), mode)
 }
 
 func readFile(path string) string {
@@ -134,6 +134,7 @@ func checkDelay(w http.ResponseWriter, ip string) (int, int, error) {
 	scanner := bufio.NewScanner(bufio.NewReader(fileIpDelays))
 	tokens := tokensFromLine(scanner, 3)
 	for 3 == len(tokens) {
+		lineNumber += 1
 		if 0 == strings.Compare(tokens[0], ip) {
 			openTime, err = strconv.Atoi(tokens[1])
 			if err != nil {
@@ -162,6 +163,7 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 		log.Fatal("Can't parse ip from request", err)
 	}
 	delay, lineNumber, err := checkDelay(w, ip)
+	log.Println(lineNumber)
 	if err != nil {
 		return "", err
 	}
