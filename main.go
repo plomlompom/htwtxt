@@ -250,31 +250,49 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 	return name, nil
 }
 
-func accountLine(w http.ResponseWriter, r *http.Request,
-	checkDupl bool) (string, error) {
-	name := r.FormValue("name")
+func newPassword(w http.ResponseWriter, r *http.Request) (string, error) {
 	pw := r.FormValue("new_password")
 	pw2 := r.FormValue("new_password2")
-	mail := r.FormValue("mail")
-	if 0 != strings.Compare(pw, pw2) || 0 == strings.Compare("name", "") ||
-		0 == strings.Compare(pw, "") || !onlyLegalRunes(name) ||
-		len(name) > 140 || len(mail) > 140 ||
-		strings.ContainsRune(mail, '\n') {
-		execTemplate(w, "error.html", "Invalid values.")
-		return "", errors.New("")
-	}
-	if checkDupl {
-		_, err := getFromFileEntryFor(loginsPath, name, 3)
-		if err == nil {
-			execTemplate(w, "error.html", "Username taken.")
-			return "", errors.New("")
-		}
+	if 0 != strings.Compare(pw, pw2) {
+		return "", errors.New("Password values did not match")
+	} else if "" == pw {
+		return "", errors.New("Illegal password.")
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
 	if err != nil {
 		log.Fatal("Can't generate password hash", err)
 	}
-	return name + " " + string(hash) + " " + mail, nil
+	return string(hash), nil
+}
+
+func newMailAddress(w http.ResponseWriter, r *http.Request) (string, error) {
+	mail := r.FormValue("mail")
+	if len(mail) > 140 || strings.ContainsRune(mail, '\n') {
+		return "", errors.New("Illegal mail address.")
+	}
+	return mail, nil
+}
+
+func changeLoginField(w http.ResponseWriter, r *http.Request,
+	getter func(w http.ResponseWriter, r *http.Request) (string, error),
+	position int) {
+	name, err := login(w, r)
+	if err != nil {
+		return
+	}
+	input, err := getter(w, r)
+	if err != nil {
+		execTemplate(w, "error.html", err.Error())
+		return
+	}
+	tokens, err := getFromFileEntryFor(loginsPath, name, 3)
+	if err != nil {
+		log.Fatal("Can't get entry for user", err)
+	}
+	tokens[position] = input
+	replaceLineStartingWith(loginsPath, name,
+		name+" "+strings.Join(tokens, " "))
+	execTemplate(w, "feedset.html", "")
 }
 
 func prepPasswordReset(name string) {
@@ -306,142 +324,6 @@ func prepPasswordReset(name string) {
 	if err := d.DialAndSend(m); err != nil {
 		log.Fatal("Can't send mail", err)
 	}
-}
-
-func cssHandler(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, templPath+"/style.css")
-}
-
-func passwordResetRequestGetHandler(w http.ResponseWriter, r *http.Request) {
-	if "" == mailserver {
-		execTemplate(w, "nopwresetrequest.html", "")
-	} else {
-		execTemplate(w, "pwresetrequest.html", "")
-	}
-}
-
-func passwordResetRequestPostHandler(w http.ResponseWriter, r *http.Request) {
-	go prepPasswordReset(r.FormValue("name"))
-	http.Redirect(w, r, "/", 302)
-}
-
-func passwordResetLinkGetHandler(w http.ResponseWriter, r *http.Request) {
-	urlPart := mux.Vars(r)["secret"]
-	if tokens, e := getFromFileEntryFor(pwResetPath, urlPart, 3); e == nil {
-		createTime, err := strconv.Atoi(tokens[1])
-		if err != nil {
-			log.Fatal("Can't read time from pw reset file",
-				err)
-		}
-		if createTime+resetLinkExp >= int(time.Now().Unix()) {
-			execTemplate(w, "pwreset.html", urlPart)
-			return
-		}
-	}
-	http.Redirect(w, r, "/404", 302)
-}
-
-func passwordResetLinkPostHandler(w http.ResponseWriter, r *http.Request) {
-	urlPart := mux.Vars(r)["secret"]
-	name := r.FormValue("name")
-	if tokens, e := getFromFileEntryFor(pwResetPath, urlPart, 3); e == nil {
-		createTime, err := strconv.Atoi(tokens[1])
-		if err != nil {
-			log.Fatal("Can't read time from pw reset file",
-				err)
-		}
-		if tokens[0] == name &&
-			createTime+resetLinkExp >= int(time.Now().Unix()) {
-			line, err := accountLine(w, r, false)
-			if err != nil {
-				return
-			}
-			replaceLineStartingWith(loginsPath, tokens[0], line)
-			removeLineStartingWith(pwResetPath, urlPart)
-			execTemplate(w, "feedset.html", "")
-			return
-		}
-	}
-	http.Redirect(w, r, "/404", 302)
-}
-
-func signUpFormHandler(w http.ResponseWriter, r *http.Request) {
-	if !signupOpen {
-		execTemplate(w, "nosignup.html", "")
-		return
-	}
-	execTemplate(w, "signupform.html", "")
-}
-
-func signUpHandler(w http.ResponseWriter, r *http.Request) {
-	if !signupOpen {
-		execTemplate(w, "error.html",
-			"Account creation currently not allowed.")
-		return
-	}
-	newLine, err := accountLine(w, r, true)
-	if err != nil {
-		return
-	}
-	appendToFile(loginsPath, newLine)
-	execTemplate(w, "feedset.html", "")
-}
-
-func accountPostHandler(w http.ResponseWriter, r *http.Request) {
-	name, err := login(w, r)
-	if err != nil {
-		return
-	}
-	newLine, err := accountLine(w, r, false)
-	if err != nil {
-		return
-	}
-	replaceLineStartingWith(loginsPath, name, newLine)
-	execTemplate(w, "feedset.html", "")
-}
-
-func listHandler(w http.ResponseWriter, r *http.Request) {
-	file := openFile(loginsPath)
-	defer file.Close()
-	scanner := bufio.NewScanner(bufio.NewReader(file))
-	var dir []string
-	tokens := tokensFromLine(scanner, 3)
-	for 0 != len(tokens) {
-		dir = append(dir, tokens[0])
-		tokens = tokensFromLine(scanner, 3)
-	}
-	type data struct{ Dir []string }
-	err := templ.ExecuteTemplate(w, "list.html", data{Dir: dir})
-	if err != nil {
-		log.Fatal("Trouble executing template", err)
-	}
-}
-
-func twtxtPostHandler(w http.ResponseWriter, r *http.Request) {
-	name, err := login(w, r)
-	if err != nil {
-		return
-	}
-	text := r.FormValue("twt")
-	twtsFile := feedsPath + "/" + name
-	createFileIfNotExists(twtsFile)
-	text = strings.Replace(text, "\n", " ", -1)
-	appendToFile(twtsFile, time.Now().Format(time.RFC3339)+"\t"+text)
-	http.Redirect(w, r, "/"+feedsDir+"/"+name, 302)
-}
-
-func twtxtHandler(w http.ResponseWriter, r *http.Request) {
-	name := mux.Vars(r)["name"]
-	if !onlyLegalRunes(name) {
-		execTemplate(w, "error.html", "Bad path.")
-		return
-	}
-	path := feedsPath + "/" + name
-	if _, err := os.Stat(path); err != nil {
-		execTemplate(w, "error.html", "Empty twtxt for user.")
-		return
-	}
-	http.ServeFile(w, r, path)
 }
 
 func nameMyself(ssl bool, port int) string {
@@ -506,6 +388,163 @@ func readOptions() (*int, *string, *string, *string) {
 	return portPtr, keyPtr, certPtr, contactPtr
 }
 
+func cssHandler(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, templPath+"/style.css")
+}
+
+func passwordResetRequestGetHandler(w http.ResponseWriter, r *http.Request) {
+	if "" == mailserver {
+		execTemplate(w, "nopwresetrequest.html", "")
+	} else {
+		execTemplate(w, "pwresetrequest.html", "")
+	}
+}
+
+func passwordResetRequestPostHandler(w http.ResponseWriter, r *http.Request) {
+	go prepPasswordReset(r.FormValue("name"))
+	http.Redirect(w, r, "/", 302)
+}
+
+func passwordResetLinkGetHandler(w http.ResponseWriter, r *http.Request) {
+	urlPart := mux.Vars(r)["secret"]
+	if tokens, e := getFromFileEntryFor(pwResetPath, urlPart, 3); e == nil {
+		createTime, err := strconv.Atoi(tokens[1])
+		if err != nil {
+			log.Fatal("Can't read time from pw reset file",
+				err)
+		}
+		if createTime+resetLinkExp >= int(time.Now().Unix()) {
+			execTemplate(w, "pwreset.html", urlPart)
+			return
+		}
+	}
+	http.Redirect(w, r, "/404", 302)
+}
+
+func passwordResetLinkPostHandler(w http.ResponseWriter, r *http.Request) {
+	urlPart := mux.Vars(r)["secret"]
+	name := r.FormValue("name")
+	if tokens, e := getFromFileEntryFor(pwResetPath, urlPart, 3); e == nil {
+		createTime, err := strconv.Atoi(tokens[1])
+		if err != nil {
+			log.Fatal("Can't read time from pw reset file",
+				err)
+		}
+		if tokens[0] == name &&
+			createTime+resetLinkExp >= int(time.Now().Unix()) {
+			tokensOld, err := getFromFileEntryFor(loginsPath, name,
+				3)
+			if err != nil {
+				log.Fatal("Can't get entry for user", err)
+			}
+			hash, err := newPassword(w, r)
+			if err != nil {
+				execTemplate(w, "error.html", err.Error())
+				return
+			}
+			line := tokens[0] + " " + hash + " " + tokensOld[1]
+			replaceLineStartingWith(loginsPath, tokens[0], line)
+			removeLineStartingWith(pwResetPath, urlPart)
+			execTemplate(w, "feedset.html", "")
+			return
+		}
+	}
+	http.Redirect(w, r, "/", 302)
+}
+
+func signUpFormHandler(w http.ResponseWriter, r *http.Request) {
+	if !signupOpen {
+		execTemplate(w, "nosignup.html", "")
+		return
+	}
+	execTemplate(w, "signupform.html", "")
+}
+
+func signUpHandler(w http.ResponseWriter, r *http.Request) {
+	if !signupOpen {
+		execTemplate(w, "error.html",
+			"Account creation currently not allowed.")
+		return
+	}
+	name := r.FormValue("name")
+	if "" == name || !onlyLegalRunes(name) || len(name) > 140 {
+		execTemplate(w, "error.html", "Illegal name.")
+		return
+	}
+	_, err := getFromFileEntryFor(loginsPath, name, 3)
+	if err == nil {
+		execTemplate(w, "error.html", "Username taken.")
+		return
+	}
+	hash, err := newPassword(w, r)
+	if err != nil {
+		execTemplate(w, "error.html", err.Error())
+		return
+	}
+	mail := ""
+	if "" != r.FormValue("mail") {
+		mail, err = newMailAddress(w, r)
+		if err != nil {
+			execTemplate(w, "error.html", err.Error())
+			return
+		}
+	}
+	appendToFile(loginsPath, name+" "+hash+" "+mail)
+	execTemplate(w, "feedset.html", "")
+}
+
+func accountSetPwHandler(w http.ResponseWriter, r *http.Request) {
+	changeLoginField(w, r, newPassword, 0)
+}
+
+func accountSetMailHandler(w http.ResponseWriter, r *http.Request) {
+	changeLoginField(w, r, newMailAddress, 1)
+}
+
+func listHandler(w http.ResponseWriter, r *http.Request) {
+	file := openFile(loginsPath)
+	defer file.Close()
+	scanner := bufio.NewScanner(bufio.NewReader(file))
+	var dir []string
+	tokens := tokensFromLine(scanner, 3)
+	for 0 != len(tokens) {
+		dir = append(dir, tokens[0])
+		tokens = tokensFromLine(scanner, 3)
+	}
+	type data struct{ Dir []string }
+	err := templ.ExecuteTemplate(w, "list.html", data{Dir: dir})
+	if err != nil {
+		log.Fatal("Trouble executing template", err)
+	}
+}
+
+func twtxtPostHandler(w http.ResponseWriter, r *http.Request) {
+	name, err := login(w, r)
+	if err != nil {
+		return
+	}
+	text := r.FormValue("twt")
+	twtsFile := feedsPath + "/" + name
+	createFileIfNotExists(twtsFile)
+	text = strings.Replace(text, "\n", " ", -1)
+	appendToFile(twtsFile, time.Now().Format(time.RFC3339)+"\t"+text)
+	http.Redirect(w, r, "/"+feedsDir+"/"+name, 302)
+}
+
+func twtxtHandler(w http.ResponseWriter, r *http.Request) {
+	name := mux.Vars(r)["name"]
+	if !onlyLegalRunes(name) {
+		execTemplate(w, "error.html", "Bad path.")
+		return
+	}
+	path := feedsPath + "/" + name
+	if _, err := os.Stat(path); err != nil {
+		execTemplate(w, "error.html", "Empty twtxt for user.")
+		return
+	}
+	http.ServeFile(w, r, path)
+}
+
 func main() {
 	var err error
 	portPtr, keyPtr, certPtr, contactPtr := readOptions()
@@ -538,9 +577,14 @@ func main() {
 	router.HandleFunc("/", handleTemplate("index.html", ""))
 	router.HandleFunc("/feeds", listHandler).Methods("GET")
 	router.HandleFunc("/feeds/", listHandler)
-	router.HandleFunc("/account", handleTemplate("accountform.html", "")).
-		Methods("GET")
-	router.HandleFunc("/account", accountPostHandler).Methods("POST")
+	router.HandleFunc("/accountsetmail",
+		handleTemplate("accountsetmail.html", "")).Methods("GET")
+	router.HandleFunc("/accountsetmail", accountSetMailHandler).
+		Methods("POST")
+	router.HandleFunc("/accountsetpw", handleTemplate("accountsetpw.html",
+		"")).Methods("GET")
+	router.HandleFunc("/accountsetpw", accountSetPwHandler).Methods("POST")
+	router.HandleFunc("/account", handleTemplate("account.html", ""))
 	router.HandleFunc("/signup", signUpFormHandler).Methods("GET")
 	router.HandleFunc("/signup", signUpHandler).Methods("POST")
 	router.HandleFunc("/feeds", twtxtPostHandler).Methods("POST")

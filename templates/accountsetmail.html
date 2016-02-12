@@ -1,0 +1,30 @@
+{{ template "header" }}
+<form method="post" action="accountsetmail">
+	<fieldset>
+		<legend>Change account mail address</legend>
+
+		<div>
+			<label for="mail">New e-mail address</label>
+			<input type="email" id="mail" name="mail" aria-describedby="mail-desc" required/>
+			<p id="mail-desc">Used for password reset and feed owner authentication.</p>
+		</div>
+
+		<hr />
+
+		<div>
+			<label for="name">Name</label>
+			<input type="text" id="name" name="name" maxlength="140" required />
+		</div>
+
+		<div>
+			<label for="password">Password</label>
+			<input type="password" id="password" name="password" required />
+		</div>
+
+		<hr />
+
+		<button type="submit">Update</button>
+	</fieldset>
+</form>
+{{ template "footer" }}
+
