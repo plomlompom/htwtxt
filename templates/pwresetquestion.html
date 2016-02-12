@@ -1,5 +1,5 @@
 {{ template "header" }}
-<form method="post" action="/passwordreset/{{ .Msg }}">
+<form method="post" action="/passwordreset/{{ .Secret }}">
 	<fieldset>
 		<legend>Reset account data</legend>
 
@@ -8,6 +8,11 @@
 			<input type="text" id="name" name="name" required />
 			<p id="name-desc">(please repeat for verification)</p>
 		</div>
+
+                <div>
+			<label for="secanswer">Security question: {{ .Question }}</label>
+			<input type="text" id="secanswer" name="secanswer" />
+                </div>
 
 		<div>
 			<label for="password">New password</label>

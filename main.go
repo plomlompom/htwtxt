@@ -158,7 +158,7 @@ func getFromFileEntryFor(path, token string,
 		if 0 == strings.Compare(tokens[0], token) {
 			return tokens[1:], nil
 		}
-		tokens = tokensFromLine(scanner, 3)
+		tokens = tokensFromLine(scanner, numberTokensExpected)
 	}
 	return []string{}, errors.New("")
 }
@@ -222,7 +222,7 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 	name := r.FormValue("name")
 	pw := r.FormValue("password")
 	loginValid := false
-	tokens, err := getFromFileEntryFor(loginsPath, name, 3)
+	tokens, err := getFromFileEntryFor(loginsPath, name, 5)
 	if err == nil && nil == bcrypt.CompareHashAndPassword([]byte(tokens[0]),
 		[]byte(pw)) {
 		loginValid = true
@@ -274,6 +274,25 @@ func newMailAddress(w http.ResponseWriter, r *http.Request) (string, error) {
 	return mail, nil
 }
 
+func newSecurityQuestion(w http.ResponseWriter, r *http.Request) (string,
+	string, error) {
+	secquestion := r.FormValue("secquestion")
+	secanswer := r.FormValue("secanswer")
+	if "" == secquestion || len(secquestion) > 140 ||
+		strings.ContainsRune(secquestion, '\n') ||
+		strings.ContainsRune(secquestion, '\t') {
+		return "", "", errors.New("Illegal security question.")
+	} else if "" == secanswer {
+		return "", "", errors.New("Illegal security question answer.")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(secanswer),
+		bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatal("Can't generate security question answer hash", err)
+	}
+	return secquestion, string(hash), nil
+}
+
 func changeLoginField(w http.ResponseWriter, r *http.Request,
 	getter func(w http.ResponseWriter, r *http.Request) (string, error),
 	position int) {
@@ -286,7 +305,7 @@ func changeLoginField(w http.ResponseWriter, r *http.Request,
 		execTemplate(w, "error.html", err.Error())
 		return
 	}
-	tokens, err := getFromFileEntryFor(loginsPath, name, 3)
+	tokens, err := getFromFileEntryFor(loginsPath, name, 5)
 	if err != nil {
 		log.Fatal("Can't get entry for user", err)
 	}
@@ -301,7 +320,7 @@ func prepPasswordReset(name string) {
 		return
 	}
 	var target string
-	tokens, err := getFromFileEntryFor(loginsPath, name, 3)
+	tokens, err := getFromFileEntryFor(loginsPath, name, 5)
 	if err != nil {
 		return
 	} else if "" == tokens[1] {
@@ -384,7 +403,6 @@ func readOptions() (*int, *string, *string, *string) {
 			log.Fatal("Trouble reading password")
 		}
 		mailpassword = string(bytePassword)
-		log.Println(mailpassword)
 	}
 	return portPtr, keyPtr, certPtr, contactPtr
 }
@@ -411,11 +429,31 @@ func passwordResetLinkGetHandler(w http.ResponseWriter, r *http.Request) {
 	if tokens, e := getFromFileEntryFor(pwResetPath, urlPart, 3); e == nil {
 		createTime, err := strconv.Atoi(tokens[1])
 		if err != nil {
-			log.Fatal("Can't read time from pw reset file",
-				err)
+			log.Fatal("Can't read time from pw reset file", err)
 		}
 		if createTime+resetLinkExp >= int(time.Now().Unix()) {
-			execTemplate(w, "pwreset.html", urlPart)
+			name := tokens[0]
+			tokensUser, err := getFromFileEntryFor(loginsPath, name,
+				5)
+			if err != nil {
+				log.Fatal("Can't read from loings file", err)
+			}
+			if "" != tokensUser[2] {
+				type data struct {
+					Secret   string
+					Question string
+				}
+				err := templ.ExecuteTemplate(w,
+					"pwresetquestion.html", data{
+						Secret:   urlPart,
+						Question: tokensUser[2]})
+				if err != nil {
+					log.Fatal("Trouble executing template",
+						err)
+				}
+			} else {
+				execTemplate(w, "pwreset.html", urlPart)
+			}
 			return
 		}
 	}
@@ -434,16 +472,24 @@ func passwordResetLinkPostHandler(w http.ResponseWriter, r *http.Request) {
 		if tokens[0] == name &&
 			createTime+resetLinkExp >= int(time.Now().Unix()) {
 			tokensOld, err := getFromFileEntryFor(loginsPath, name,
-				3)
+				5)
 			if err != nil {
 				log.Fatal("Can't get entry for user", err)
+			}
+			if "" != tokensOld[2] &&
+				nil != bcrypt.CompareHashAndPassword(
+					[]byte(tokensOld[3]),
+					[]byte(r.FormValue("secanswer"))) {
+				http.Redirect(w, r, "/", 302)
+				return
 			}
 			hash, err := newPassword(w, r)
 			if err != nil {
 				execTemplate(w, "error.html", err.Error())
 				return
 			}
-			line := tokens[0] + "\t" + hash + "\t" + tokensOld[1]
+			tokensOld[0] = hash
+			line := name + "\t" + strings.Join(tokensOld, "\t")
 			replaceLineStartingWith(loginsPath, tokens[0], line)
 			removeLineStartingWith(pwResetPath, urlPart)
 			execTemplate(w, "feedset.html", "")
@@ -472,8 +518,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 		execTemplate(w, "error.html", "Illegal name.")
 		return
 	}
-	_, err := getFromFileEntryFor(loginsPath, name, 3)
-	if err == nil {
+	if _, err := getFromFileEntryFor(loginsPath, name, 5); err == nil {
 		execTemplate(w, "error.html", "Username taken.")
 		return
 	}
@@ -490,7 +535,16 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	appendToFile(loginsPath, name+"\t"+hash+"\t"+mail)
+	var secquestion, secanswer string
+	if "" != r.FormValue("secquestion") || "" != r.FormValue("secanswer") {
+		secquestion, secanswer, err = newSecurityQuestion(w, r)
+		if err != nil {
+			execTemplate(w, "error.html", err.Error())
+			return
+		}
+	}
+	appendToFile(loginsPath,
+		name+"\t"+hash+"\t"+mail+"\t"+secquestion+"\t"+secanswer)
 	execTemplate(w, "feedset.html", "")
 }
 
@@ -502,15 +556,39 @@ func accountSetMailHandler(w http.ResponseWriter, r *http.Request) {
 	changeLoginField(w, r, newMailAddress, 1)
 }
 
+func accountSetQuestionHandler(w http.ResponseWriter, r *http.Request) {
+	name, err := login(w, r)
+	if err != nil {
+		return
+	}
+	var secquestion, secanswer string
+	if "" != r.FormValue("secquestion") || "" != r.FormValue("secanswer") {
+		secquestion, secanswer, err = newSecurityQuestion(w, r)
+		if err != nil {
+			execTemplate(w, "error.html", err.Error())
+			return
+		}
+	}
+	tokens, err := getFromFileEntryFor(loginsPath, name, 5)
+	if err != nil {
+		log.Fatal("Can't get entry for user", err)
+	}
+	tokens[2] = secquestion
+	tokens[3] = secanswer
+	replaceLineStartingWith(loginsPath, name,
+		name+"\t"+strings.Join(tokens, "\t"))
+	execTemplate(w, "feedset.html", "")
+}
+
 func listHandler(w http.ResponseWriter, r *http.Request) {
 	file := openFile(loginsPath)
 	defer file.Close()
 	scanner := bufio.NewScanner(bufio.NewReader(file))
 	var dir []string
-	tokens := tokensFromLine(scanner, 3)
+	tokens := tokensFromLine(scanner, 5)
 	for 0 != len(tokens) {
 		dir = append(dir, tokens[0])
-		tokens = tokensFromLine(scanner, 3)
+		tokens = tokensFromLine(scanner, 5)
 	}
 	type data struct{ Dir []string }
 	err := templ.ExecuteTemplate(w, "list.html", data{Dir: dir})
@@ -578,6 +656,10 @@ func main() {
 	router.HandleFunc("/", handleTemplate("index.html", ""))
 	router.HandleFunc("/feeds", listHandler).Methods("GET")
 	router.HandleFunc("/feeds/", listHandler)
+	router.HandleFunc("/accountsetquestion",
+		handleTemplate("accountsetquestion.html", "")).Methods("GET")
+	router.HandleFunc("/accountsetquestion", accountSetQuestionHandler).
+		Methods("POST")
 	router.HandleFunc("/accountsetmail",
 		handleTemplate("accountsetmail.html", "")).Methods("GET")
 	router.HandleFunc("/accountsetmail", accountSetMailHandler).
