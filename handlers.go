@@ -26,6 +26,18 @@ func passwordResetRequestPostHandler(w http.ResponseWriter, r *http.Request) {
 		if "" == mailuser {
 			return
 		}
+		now := int(time.Now().Unix())
+		tokens, errWait := getFromFileEntryFor(pwResetWaitPath, name, 2)
+		if errWait == nil {
+			lastTime, err := strconv.Atoi(tokens[0])
+			if err != nil {
+				log.Fatal("Trouble parsing password reset "+
+					"wait times", err)
+			}
+			if lastTime+resetWaitTime >= now {
+				return
+			}
+		}
 		var target string
 		tokens, err := getFromFileEntryFor(loginsPath, name, 5)
 		if err != nil {
@@ -39,7 +51,7 @@ func passwordResetRequestPostHandler(w http.ResponseWriter, r *http.Request) {
 			log.Fatal("Random string generation failed", err)
 		}
 		urlPart := base64.URLEncoding.EncodeToString(b)
-		strTime := strconv.Itoa(int(time.Now().Unix()))
+		strTime := strconv.Itoa(now)
 		appendToFile(pwResetPath, urlPart+"\t"+name+"\t"+strTime)
 		m := gomail.NewMessage()
 		m.SetHeader("From", mailuser)
@@ -49,6 +61,12 @@ func passwordResetRequestPostHandler(w http.ResponseWriter, r *http.Request) {
 		m.SetBody("text/plain", msg)
 		if err := dialer.DialAndSend(m); err != nil {
 			log.Fatal("Can't send mail", err)
+		}
+		line := name + "\t" + strTime
+		if nil == errWait {
+			replaceLineStartingWith(pwResetWaitPath, name, line)
+		} else {
+			appendToFile(pwResetWaitPath, line)
 		}
 	}
 	go preparePasswordReset(r.FormValue("name"))

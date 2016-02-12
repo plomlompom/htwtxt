@@ -13,6 +13,7 @@ const loginsFile = "logins.txt"
 const feedsDir = "feeds"
 const ipDelaysFile = "ip_delays.txt"
 const pwResetFile = "password_reset.txt"
+const pwResetWaitFile = "password_reset_wait.txt"
 
 var certPath string
 var dataDir string
@@ -21,6 +22,7 @@ var ipDelaysPath string
 var keyPath string
 var loginsPath string
 var pwResetPath string
+var pwResetWaitPath string
 var templPath string
 
 func createFileIfNotExists(path string) {
@@ -148,6 +150,7 @@ func initFilesAndDirs() {
 	feedsPath = dataDir + "/" + feedsDir
 	ipDelaysPath = dataDir + "/" + ipDelaysFile
 	pwResetPath = dataDir + "/" + pwResetFile
+	pwResetWaitPath = dataDir + "/" + pwResetWaitFile
 	if "" != keyPath {
 		log.Println("Using TLS.")
 		if _, err := os.Stat(certPath); err != nil {
@@ -159,6 +162,7 @@ func initFilesAndDirs() {
 	}
 	createFileIfNotExists(loginsPath)
 	createFileIfNotExists(pwResetPath)
+	createFileIfNotExists(pwResetWaitPath)
 	createFileIfNotExists(ipDelaysPath)
 	// TODO: Handle err here.
 	_ = os.Mkdir(feedsPath, 0700)

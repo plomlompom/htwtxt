@@ -19,6 +19,7 @@ import "syscall"
 import "time"
 
 const resetLinkExp = 1800
+const resetWaitTime = 3600 * 24
 
 var contact string
 var dialer *gomail.Dialer
