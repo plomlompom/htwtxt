@@ -8,7 +8,7 @@ text files with URLs accessible over the Internet. *htwtxt* is a web server to
 host and grow such text files for users without trivial access to their own web
 space.
 
-## Features (or lack thereof)
+## Features
 
 - individual twtxt feeds mapped to user accounts with password-protected write
   access
@@ -103,8 +103,8 @@ set of flags `--mailserver`, `--mailport`, `--mailuser` must be set to describe
 a SMTP server and its login from which to send password reset mails to users'
 mail addresses. (The site operator will be prompted for his SMTP login password
 on program start.) Whether this mechanism is trustworthy or not is up to the
-site operator. Users may set up optional security questions to be posed on the
-password reset links they enablie with setting their mail address.
+site operator's imagination. Users may set up optional security questions to be
+posed on the password reset links they enable by setting their mail address.
 
 ### Change HTML templates
 
