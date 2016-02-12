@@ -10,17 +10,18 @@ space.
 
 ## Features (or lack thereof)
 
-- user accounts may be registered, mapped to individual twtxt feeds
+- individual twtxt feeds mapped to user accounts with password-protected write
+  access
 - no sessions, no cookies: few POST-writable resources (feeds, account data)
-  expect user credential parameters, which to store between requests if desired
-  is up to the user / browser
+  expect credentials, which to store between requests if desired is up to the
+  user / browser
 - account registration may be open to the public, or closed (with the site
   operator adding new accounts manually)
-- users may register e-mail addresses and optional security questions to allow
-  for password reset (if enabled by site operator)
+- users may add e-mail addresses and optional security questions to their
+  accounts to use for a password reset mechanism (if enabled by site operator)
 - HTTPS / TLS support (if paths to key and certificate files are provided)
-- all HTML and CSS is read from a templates directory, the path of which can be
-  easily changed, so as to enable easy customization of the page appearance
+- all HTML+CSS is read from a templates directory, which can be freely chosen at
+  server start so as to ease customization of the interface
  
 ## Online demo
 
