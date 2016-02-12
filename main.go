@@ -9,6 +9,7 @@ import "golang.org/x/crypto/bcrypt"
 import "golang.org/x/crypto/ssh/terminal"
 import "gopkg.in/gomail.v2"
 import "html/template"
+import "io/ioutil"
 import "log"
 import "net"
 import "net/http"
@@ -190,19 +191,16 @@ func changeLoginField(w http.ResponseWriter, r *http.Request,
 }
 
 func nameMyself(ssl bool, port int) string {
-	addresses, err := net.InterfaceAddrs()
+	resp, err := http.Get("http://myexternalip.com/raw")
+	defer resp.Body.Close()
 	if err != nil {
-		log.Fatal("Can't get local interface addresses", err)
+		log.Fatal("Trouble getting IP", err)
 	}
-	var ip string
-	for _, address := range addresses {
-		if ipnet, ok := address.(*net.IPNet); ok &&
-			!ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				ip = ipnet.IP.String()
-			}
-		}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal("Trouble reading IP message body", err)
 	}
+	ip := string(body)
 	s := ""
 	if ssl {
 		s = "s"
