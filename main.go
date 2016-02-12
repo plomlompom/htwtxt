@@ -31,7 +31,6 @@ const legalUrlChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" +
 	"0123456789_"
 const resetLinkExp = 1800
 
-var contactString string
 var dataDir string
 var feedsPath string
 var ipDelaysPath string
@@ -172,6 +171,13 @@ func execTemplate(w http.ResponseWriter, file string, input string) {
 	}
 }
 
+func handleTemplate(path, msg string) func(w http.ResponseWriter,
+	r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		execTemplate(w, path, msg)
+	}
+}
+
 func onlyLegalRunes(str string) bool {
 	for _, ru := range str {
 		if !(strings.ContainsRune(legalUrlChars, ru)) {
@@ -306,14 +312,6 @@ func cssHandler(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, templPath+"/style.css")
 }
 
-func indexHandler(w http.ResponseWriter, r *http.Request) {
-	execTemplate(w, "index.html", "")
-}
-
-func infoHandler(w http.ResponseWriter, r *http.Request) {
-	execTemplate(w, "info.html", contactString)
-}
-
 func passwordResetRequestGetHandler(w http.ResponseWriter, r *http.Request) {
 	if "" == mailserver {
 		execTemplate(w, "nopwresetrequest.html", "")
@@ -387,10 +385,6 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	appendToFile(loginsPath, newLine)
 	execTemplate(w, "feedset.html", "")
-}
-
-func accountFormHandler(w http.ResponseWriter, r *http.Request) {
-	execTemplate(w, "accountform.html", "")
 }
 
 func accountPostHandler(w http.ResponseWriter, r *http.Request) {
@@ -472,7 +466,7 @@ func nameMyself(ssl bool, port int) string {
 	return "http" + s + "://" + ip + ":" + strconv.Itoa(port)
 }
 
-func readOptions() (*int, *string, *string) {
+func readOptions() (*int, *string, *string, *string) {
 	portPtr := flag.Int("port", 8000, "port to serve")
 	keyPtr := flag.String("key", "", "SSL key file")
 	certPtr := flag.String("cert", "", "SSL certificate file")
@@ -481,7 +475,7 @@ func readOptions() (*int, *string, *string) {
 		"directory where to expect HTML templates")
 	flag.StringVar(&dataDir, "dir", os.Getenv("HOME")+"/htwtxt",
 		"directory to store feeds and login data")
-	flag.StringVar(&contactString, "contact",
+	contactPtr := flag.String("contact",
 		"[operator passed no contact info to server]",
 		"operator contact info to display on info page")
 	flag.BoolVar(&signupOpen, "signup", false,
@@ -509,12 +503,12 @@ func readOptions() (*int, *string, *string) {
 		mailpassword = string(bytePassword)
 		log.Println(mailpassword)
 	}
-	return portPtr, keyPtr, certPtr
+	return portPtr, keyPtr, certPtr, contactPtr
 }
 
 func main() {
 	var err error
-	portPtr, keyPtr, certPtr := readOptions()
+	portPtr, keyPtr, certPtr, contactPtr := readOptions()
 	log.Println("Using as templates dir:", templPath)
 	log.Println("Using as data dir:", dataDir)
 	loginsPath = dataDir + "/" + loginsFile
@@ -541,16 +535,17 @@ func main() {
 		log.Fatal("Can't set up new template: ", err)
 	}
 	router := mux.NewRouter()
-	router.HandleFunc("/", indexHandler)
+	router.HandleFunc("/", handleTemplate("index.html", ""))
 	router.HandleFunc("/feeds", listHandler).Methods("GET")
 	router.HandleFunc("/feeds/", listHandler)
-	router.HandleFunc("/account", accountFormHandler).Methods("GET")
+	router.HandleFunc("/account", handleTemplate("accountform.html", "")).
+		Methods("GET")
 	router.HandleFunc("/account", accountPostHandler).Methods("POST")
 	router.HandleFunc("/signup", signUpFormHandler).Methods("GET")
 	router.HandleFunc("/signup", signUpHandler).Methods("POST")
 	router.HandleFunc("/feeds", twtxtPostHandler).Methods("POST")
 	router.HandleFunc("/feeds/{name}", twtxtHandler)
-	router.HandleFunc("/info", infoHandler)
+	router.HandleFunc("/info", handleTemplate("info.html", *contactPtr))
 	router.HandleFunc("/passwordreset", passwordResetRequestPostHandler).
 		Methods("POST")
 	router.HandleFunc("/passwordreset", passwordResetRequestGetHandler).
