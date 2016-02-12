@@ -15,8 +15,8 @@ space.
 - no sessions, no cookies: few POST-writable resources (feeds, account data)
   expect credentials, which to store between requests if desired is up to the
   user / browser
-- account registration may be open to the public, or closed (with the site
-  operator adding new accounts manually)
+- account registration may be open to the public, or (default) closed (with the
+  site operator adding new accounts manually)
 - users may add e-mail addresses and optional security questions to their
   accounts to use for a password reset mechanism (if enabled by site operator)
 - HTTPS / TLS support (if paths to key and certificate files are provided)
