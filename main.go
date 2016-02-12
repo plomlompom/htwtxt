@@ -117,19 +117,31 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 	return name, nil
 }
 
+func nameIsLegal(name string) bool {
+	return !("" == name || !onlyLegalRunes(name) || len(name) > 140)
+}
+
+func passwordIsLegal(password string) bool {
+	return !("" == password)
+}
+
+func hashFromPw(pw string) string {
+	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatal("Can't generate hash", err)
+	}
+	return string(hash)
+}
+
 func newPassword(w http.ResponseWriter, r *http.Request) (string, error) {
 	pw := r.FormValue("new_password")
 	pw2 := r.FormValue("new_password2")
 	if 0 != strings.Compare(pw, pw2) {
 		return "", errors.New("Password values did not match")
-	} else if "" == pw {
+	} else if !passwordIsLegal(pw) {
 		return "", errors.New("Illegal password.")
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
-	if err != nil {
-		log.Fatal("Can't generate password hash", err)
-	}
-	return string(hash), nil
+	return hashFromPw(pw), nil
 }
 
 func newMailAddress(w http.ResponseWriter, r *http.Request) (string, error) {
@@ -152,12 +164,7 @@ func newSecurityQuestion(w http.ResponseWriter, r *http.Request) (string,
 	} else if "" == secanswer {
 		return "", "", errors.New("Illegal security question answer.")
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(secanswer),
-		bcrypt.DefaultCost)
-	if err != nil {
-		log.Fatal("Can't generate security question answer hash", err)
-	}
-	return secquestion, string(hash), nil
+	return secquestion, hashFromPw(secanswer), nil
 }
 
 func changeLoginField(w http.ResponseWriter, r *http.Request,
@@ -203,11 +210,14 @@ func nameMyself(ssl bool, port int) string {
 	return "http" + s + "://" + ip + ":" + strconv.Itoa(port)
 }
 
-func readOptions() (string, int, string, int) {
+func readOptions() (string, int, string, int, string) {
 	var mailpw string
 	var mailport int
 	var mailserver string
 	var port int
+	var newLogin string
+	flag.StringVar(&newLogin, "adduser", "", "instead of starting as "+
+		"server, add user with login NAME:PASSWORD")
 	flag.IntVar(&port, "port", 8000, "port to serve")
 	flag.StringVar(&keyPath, "key", "", "SSL key file")
 	flag.StringVar(&certPath, "cert", "", "SSL certificate file")
@@ -244,13 +254,38 @@ func readOptions() (string, int, string, int) {
 		mailpw = string(bytePassword)
 		fmt.Println("")
 	}
-	return mailserver, mailport, mailpw, port
+	return mailserver, mailport, mailpw, port, newLogin
+}
+
+func addUser(login string) {
+	fields := strings.Split(login, ":")
+	if len(fields) != 2 {
+		log.Fatal("Malformed adduser string, must be NAME:PASSWORD")
+	}
+	name := fields[0]
+	password := fields[1]
+	if !nameIsLegal(name) {
+		log.Fatal("Malformed adduser NAME argument.")
+	}
+	if !passwordIsLegal(password) {
+		log.Fatal("Malformed adduser PASSWORD argument.")
+	}
+	if _, err := getFromFileEntryFor(loginsPath, name, 5); err == nil {
+		log.Fatal("Username already taken.")
+	}
+	hash := hashFromPw(password)
+	appendToFile(loginsPath, name+"\t"+hash+"\t\t\t")
+	fmt.Println("Added user.")
 }
 
 func main() {
 	var err error
-	mailserver, mailport, mailpw, port := readOptions()
+	mailserver, mailport, mailpw, port, newLogin := readOptions()
 	initFilesAndDirs()
+	if "" != newLogin {
+		addUser(newLogin)
+		return
+	}
 	myself = nameMyself("" != keyPath, port)
 	templ, err = template.New("main").ParseGlob(templPath + "/*.html")
 	if err != nil {

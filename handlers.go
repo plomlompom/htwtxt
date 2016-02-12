@@ -170,7 +170,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := r.FormValue("name")
-	if "" == name || !onlyLegalRunes(name) || len(name) > 140 {
+	if !nameIsLegal(name) {
 		execTemplate(w, "error.html", "Illegal name.")
 		return
 	}

@@ -10,18 +10,20 @@ space.
 
 ## Features (or lack thereof)
 
-- users may register accounts mapped to individual twtxt feeds they may write to
+- user accounts may be registered, mapped to individual twtxt feeds they can
+  write to
 - no sessions, no cookies: few POST-writable resources (feeds, account data)
-  expect user credential parameters, which to store between requests is up to
-  the user / browser
+  expect user credential parameters, which to store between requests if desired
+  is up to the user / browser
+- account registration may be open to the public, or closed (with the site
+  operator adding new accounts manually)
 - users may register e-mail addresses and optional security questions to allow
   for password reset (if enabled by site operator)
-- account registration may be closed or open to the public
 - HTTPS / TLS support (if paths to key and certificate files are provided)
  
 ## Online demo
 
-A demo instance with frequent downtimes can be tested at
+A demo instance with frequent downtimes and open sign-up can be tested at
 http://test.plomlompom.com:8000 (don't expect any of its feeds' URLs to be
 stable; it's just for testing, and data frequently gets deleted).
 
@@ -76,10 +78,12 @@ This is [a common privilege problem](http://stackoverflow.com/q/413807) and
 
     sudo setcap 'cap_net_bind_service=+ep' $GOPATH/bin/htwtxt
 
-### Public sign-up
+### Public or closed sign-up
 
-By default, sign up / account creation is not open to the public. The `--signup`
-flag must be set explicitely to change that.
+By default, sign up / account creation is not open to the web-browsing public.
+The `--signup` flag must be set explicitely to change that. Alternatively, new
+accounts can be added by starting the program with the `--adduser` flag,
+followed by an argument of the form `NAME:PASSWORD`.
 
 ### Set site owner contact info
 
