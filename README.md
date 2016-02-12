@@ -17,7 +17,7 @@ space.
 - users may register e-mail addresses and optional security questions to allow
   for password reset (if enabled by site operator)
 - account registration may be closed or open to the public
-- https / ssl is supported (given paths to key and certificate files)
+- HTTPS / TLS support (if paths to key and certificate files are provided)
  
 ## Online demo
 
@@ -106,6 +106,7 @@ template files of the same names as the default ones, however).
 
 ## Copyright, license
 
-htwtxt (c) 2016 Christian Heller a.k.a. plomlompom
+htwtxt (c) 2016 Christian Heller a.k.a. [plomlompom](http://www.plomlompom.de),
+with template design input by [Kai Kubasta](http://kaikubasta.de).
 
 License: Affero GPL version 3, see `./LICENSE`
