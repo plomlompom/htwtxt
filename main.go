@@ -238,7 +238,7 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 		} else {
 			replaceLineStartingWith(ipDelaysPath, ip, line)
 		}
-		execTemplate(w, "error_pw.html", "Bad login.")
+		execTemplate(w, "error_login.html", "Bad login.")
 		return name, errors.New("")
 	}
 	return name, nil
