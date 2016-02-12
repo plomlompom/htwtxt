@@ -135,6 +135,21 @@ func tokensFromLine(scanner *bufio.Scanner, nTokensExpected int) []string {
 	return tokens
 }
 
+func getFromFileEntryFor(path, token string,
+	numberTokensExpected int) ([]string, error) {
+	file := openFile(path)
+	defer file.Close()
+	scanner := bufio.NewScanner(bufio.NewReader(file))
+	tokens := tokensFromLine(scanner, numberTokensExpected)
+	for 0 != len(tokens) {
+		if 0 == strings.Compare(tokens[0], token) {
+			return tokens[1:], nil
+		}
+		tokens = tokensFromLine(scanner, 3)
+	}
+	return []string{}, errors.New("")
+}
+
 func execTemplate(w http.ResponseWriter, file string, input string) {
 	type data struct{ Msg string }
 	err := templ.ExecuteTemplate(w, file, data{Msg: input})
@@ -154,31 +169,24 @@ func onlyLegalRunes(str string) bool {
 
 func checkDelay(w http.ResponseWriter, ip string) (int, error) {
 	var err error
-	fileIpDelays := openFile(ipDelaysPath)
-	defer fileIpDelays.Close()
-	scanner := bufio.NewScanner(bufio.NewReader(fileIpDelays))
-	tokens := tokensFromLine(scanner, 3)
-	delay := -1
 	var openTime int
-	for 3 == len(tokens) {
-		if 0 == strings.Compare(tokens[0], ip) {
-			openTime, err = strconv.Atoi(tokens[1])
-			if err != nil {
-				log.Fatal("Can't parse IP delays file", err)
-			}
-			delay, err = strconv.Atoi(tokens[2])
-			if err != nil {
-				log.Fatal("Can't parse IP delays file", err)
-			}
-			if int(time.Now().Unix()) < openTime {
-				execTemplate(w, "error.html",
-					"This IP must wait a while for its "+
-						"next login attempt.")
-				err = errors.New("")
-			}
-			break
+	delay := -1
+	tokens, errGet := getFromFileEntryFor(ipDelaysPath, ip, 3)
+	if errGet == nil {
+		openTime, err = strconv.Atoi(tokens[0])
+		if err != nil {
+			log.Fatal("Can't parse IP delays file", err)
 		}
-		tokens = tokensFromLine(scanner, 3)
+		delay, err = strconv.Atoi(tokens[1])
+		if err != nil {
+			log.Fatal("Can't parse IP delays file", err)
+		}
+		if int(time.Now().Unix()) < openTime {
+			execTemplate(w, "error.html",
+				"This IP must wait a while for its "+
+					"next login attempt.")
+			err = errors.New("")
+		}
 	}
 	return delay, err
 }
@@ -195,21 +203,13 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 	name := r.FormValue("name")
 	pw := r.FormValue("password")
 	loginValid := false
-	fileLogins := openFile(loginsPath)
-	defer fileLogins.Close()
-	scanner := bufio.NewScanner(bufio.NewReader(fileLogins))
-	tokens := tokensFromLine(scanner, 3)
-	for 0 != len(tokens) {
-		if 0 == strings.Compare(tokens[0], name) &&
-			nil == bcrypt.CompareHashAndPassword([]byte(tokens[1]),
-				[]byte(pw)) {
-			loginValid = true
-			if 0 <= delay {
-				removeLineStartingWith(ipDelaysPath, ip)
-			}
-			break
+	tokens, err := getFromFileEntryFor(loginsPath, name, 3)
+	if err == nil && nil == bcrypt.CompareHashAndPassword([]byte(tokens[0]),
+		[]byte(pw)) {
+		loginValid = true
+		if 0 <= delay {
+			removeLineStartingWith(ipDelaysPath, ip)
 		}
-		tokens = tokensFromLine(scanner, 3)
 	}
 	if !loginValid {
 		newLine := delay == -1
@@ -245,16 +245,10 @@ func accountLine(w http.ResponseWriter, r *http.Request,
 		return "", errors.New("")
 	}
 	if checkDupl {
-		fileRead := openFile(loginsPath)
-		defer fileRead.Close()
-		scanner := bufio.NewScanner(bufio.NewReader(fileRead))
-		tokens := tokensFromLine(scanner, 3)
-		for 0 != len(tokens) {
-			if 0 == strings.Compare(name, tokens[0]) {
-				execTemplate(w, "error.html", "Username taken.")
-				return "", errors.New("")
-			}
-			tokens = tokensFromLine(scanner, 3)
+		_, err := getFromFileEntryFor(loginsPath, name, 3)
+		if err == nil {
+			execTemplate(w, "error.html", "Username taken.")
+			return "", errors.New("")
 		}
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
