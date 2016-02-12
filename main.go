@@ -200,7 +200,7 @@ func nameMyself(ssl bool, port int) string {
 	if err != nil {
 		log.Fatal("Trouble reading IP message body", err)
 	}
-	ip := string(body)
+	ip := strings.Replace(string(body), "\n", "", -1)
 	s := ""
 	if ssl {
 		s = "s"
