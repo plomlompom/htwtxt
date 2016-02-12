@@ -21,6 +21,7 @@ import "time"
 
 const resetLinkExp = 1800
 const resetWaitTime = 3600 * 24
+const version = "1.0"
 
 var contact string
 var dialer *gomail.Dialer
@@ -208,12 +209,34 @@ func nameMyself(ssl bool, port int) string {
 	return "http" + s + "://" + ip + ":" + strconv.Itoa(port)
 }
 
-func readOptions() (string, int, string, int, string) {
+func addUser(login string) {
+	fields := strings.Split(login, ":")
+	if len(fields) != 2 {
+		log.Fatal("Malformed adduser string, must be NAME:PASSWORD")
+	}
+	name := fields[0]
+	password := fields[1]
+	if !nameIsLegal(name) {
+		log.Fatal("Malformed adduser NAME argument.")
+	}
+	if !passwordIsLegal(password) {
+		log.Fatal("Malformed adduser PASSWORD argument.")
+	}
+	if _, err := getFromFileEntryFor(loginsPath, name, 5); err == nil {
+		log.Fatal("Username already taken.")
+	}
+	hash := hashFromPw(password)
+	appendToFile(loginsPath, name+"\t"+hash+"\t\t\t")
+	fmt.Println("Added user.")
+}
+
+func readOptions() (string, int, string, int, string, bool) {
 	var mailpw string
 	var mailport int
 	var mailserver string
 	var port int
 	var newLogin string
+	var showVersion bool
 	flag.StringVar(&newLogin, "adduser", "", "instead of starting as "+
 		"server, add user with login NAME:PASSWORD")
 	flag.IntVar(&port, "port", 8000, "port to serve")
@@ -229,6 +252,7 @@ func readOptions() (string, int, string, int, string) {
 		"operator contact info to display on info page")
 	flag.BoolVar(&signupOpen, "signup", false,
 		"enable on-site account creation")
+	flag.BoolVar(&showVersion, "version", false, "show version number")
 	flag.StringVar(&mailserver, "mailserver", "",
 		"SMTP server to send mails through")
 	flag.IntVar(&mailport, "mailport", 0,
@@ -252,33 +276,17 @@ func readOptions() (string, int, string, int, string) {
 		mailpw = string(bytePassword)
 		fmt.Println("")
 	}
-	return mailserver, mailport, mailpw, port, newLogin
-}
-
-func addUser(login string) {
-	fields := strings.Split(login, ":")
-	if len(fields) != 2 {
-		log.Fatal("Malformed adduser string, must be NAME:PASSWORD")
-	}
-	name := fields[0]
-	password := fields[1]
-	if !nameIsLegal(name) {
-		log.Fatal("Malformed adduser NAME argument.")
-	}
-	if !passwordIsLegal(password) {
-		log.Fatal("Malformed adduser PASSWORD argument.")
-	}
-	if _, err := getFromFileEntryFor(loginsPath, name, 5); err == nil {
-		log.Fatal("Username already taken.")
-	}
-	hash := hashFromPw(password)
-	appendToFile(loginsPath, name+"\t"+hash+"\t\t\t")
-	fmt.Println("Added user.")
+	return mailserver, mailport, mailpw, port, newLogin, showVersion
 }
 
 func main() {
 	var err error
-	mailserver, mailport, mailpw, port, newLogin := readOptions()
+	mailserver, mailport, mailpw, port, newLogin, showVersion :=
+		readOptions()
+	if showVersion {
+		fmt.Println("htwtxt", version)
+		return
+	}
 	initFilesAndDirs()
 	if "" != newLogin {
 		addUser(newLogin)

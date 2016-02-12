@@ -112,9 +112,11 @@ By default, HTML templates are read out of `$GOPATH/src/htwtxt/templates/`. An
 alternate directory can be given with the flag `--templates` (it should contain
 template files of the same names as the default ones, however).
 
-## Copyright, license
+## Copyright, license, version
 
 htwtxt (c) 2016 Christian Heller a.k.a. [plomlompom](http://www.plomlompom.de),
 with template design input by [Kai Kubasta](http://kaikubasta.de).
 
 License: Affero GPL version 3, see `./LICENSE`
+
+Current version number: 1.0
