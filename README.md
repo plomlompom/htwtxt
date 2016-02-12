@@ -82,8 +82,8 @@ The password reset mechanism by mail is inactive by default. To activate it, a
 set of flags `--mailserver`, `--mailport`, `--mailuser` must be provided to
 describe a SMTP server and its login from which to send password reset mails to
 users' mail addresses. (The site operator will be prompted for his SMTP login
-password only when the server starts.) Whether this mechanism is trustworthy or
-not is a decision up to the site operator.
+password on program start.) Whether this mechanism is trustworthy or not is a
+decision up to the site operator.
 
 ### Changing HTML templates
 
