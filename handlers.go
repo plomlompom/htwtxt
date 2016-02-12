@@ -110,7 +110,7 @@ func passwordResetLinkPostHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tokens[0] != name {
-		execTemplate(w, "error.html", "Wrong!")
+		execTemplate(w, "error.html", "Wrong answer(s).")
 		removeLineStartingWith(pwResetPath, urlPart)
 		return
 	}
@@ -121,7 +121,7 @@ func passwordResetLinkPostHandler(w http.ResponseWriter, r *http.Request) {
 	if "" != tokensUser[2] &&
 		nil != bcrypt.CompareHashAndPassword([]byte(tokensUser[3]),
 			[]byte(r.FormValue("secanswer"))) {
-		execTemplate(w, "error.html", "Wrong!")
+		execTemplate(w, "error.html", "Wrong answer(s).")
 		removeLineStartingWith(pwResetPath, urlPart)
 		return
 	}
