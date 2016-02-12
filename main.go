@@ -108,7 +108,7 @@ func removeLineStartingWith(path, token string) {
 	lineNumber := -1
 	for lineCount := 0; lineCount < len(lines); lineCount += 1 {
 		line := lines[lineCount]
-		tokens := strings.Split(line, " ")
+		tokens := strings.Split(line, "\t")
 		if 0 == strings.Compare(token, tokens[0]) {
 			lineNumber = lineCount
 			break
@@ -127,7 +127,7 @@ func removeLineFromFile(path string, lineNumber int) {
 func replaceLineStartingWith(path, token, newLine string) {
 	lines := linesFromFile(path)
 	for i, line := range lines {
-		tokens := strings.Split(line, " ")
+		tokens := strings.Split(line, "\t")
 		if 0 == strings.Compare(token, tokens[0]) {
 			lines[i] = newLine
 			break
@@ -141,7 +141,7 @@ func tokensFromLine(scanner *bufio.Scanner, nTokensExpected int) []string {
 		return []string{}
 	}
 	line := scanner.Text()
-	tokens := strings.Split(line, " ")
+	tokens := strings.Split(line, "\t")
 	if len(tokens) != nTokensExpected {
 		log.Fatal("Line in file had unexpected number of tokens")
 	}
@@ -238,7 +238,7 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 		}
 		strOpenTime := strconv.Itoa(int(time.Now().Unix()) + delay)
 		strDelay := strconv.Itoa(delay)
-		line := ip + " " + strOpenTime + " " + strDelay
+		line := ip + "\t" + strOpenTime + "\t" + strDelay
 		if newLine {
 			appendToFile(ipDelaysPath, line)
 		} else {
@@ -267,7 +267,8 @@ func newPassword(w http.ResponseWriter, r *http.Request) (string, error) {
 
 func newMailAddress(w http.ResponseWriter, r *http.Request) (string, error) {
 	mail := r.FormValue("mail")
-	if len(mail) > 140 || strings.ContainsRune(mail, '\n') {
+	if len(mail) > 140 || strings.ContainsRune(mail, '\n') ||
+		strings.ContainsRune(mail, '\t') {
 		return "", errors.New("Illegal mail address.")
 	}
 	return mail, nil
@@ -291,7 +292,7 @@ func changeLoginField(w http.ResponseWriter, r *http.Request,
 	}
 	tokens[position] = input
 	replaceLineStartingWith(loginsPath, name,
-		name+" "+strings.Join(tokens, " "))
+		name+"\t"+strings.Join(tokens, "\t"))
 	execTemplate(w, "feedset.html", "")
 }
 
@@ -313,7 +314,7 @@ func prepPasswordReset(name string) {
 	}
 	urlPart := base64.URLEncoding.EncodeToString(b)
 	strTime := strconv.Itoa(int(time.Now().Unix()))
-	appendToFile(pwResetPath, urlPart+" "+name+" "+strTime)
+	appendToFile(pwResetPath, urlPart+"\t"+name+"\t"+strTime)
 	m := gomail.NewMessage()
 	m.SetHeader("From", mailuser)
 	m.SetHeader("To", target)
@@ -442,7 +443,7 @@ func passwordResetLinkPostHandler(w http.ResponseWriter, r *http.Request) {
 				execTemplate(w, "error.html", err.Error())
 				return
 			}
-			line := tokens[0] + " " + hash + " " + tokensOld[1]
+			line := tokens[0] + "\t" + hash + "\t" + tokensOld[1]
 			replaceLineStartingWith(loginsPath, tokens[0], line)
 			removeLineStartingWith(pwResetPath, urlPart)
 			execTemplate(w, "feedset.html", "")
@@ -489,7 +490,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	appendToFile(loginsPath, name+" "+hash+" "+mail)
+	appendToFile(loginsPath, name+"\t"+hash+"\t"+mail)
 	execTemplate(w, "feedset.html", "")
 }
 
