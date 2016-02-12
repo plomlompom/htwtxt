@@ -8,11 +8,23 @@ text files with URLs accessible over the Internet. *htwtxt* is a web server to
 host and grow such text files for users without trivial access to their own web
 space.
 
+## Features (or lack thereof)
+
+- users may register accounts mapped to individual twtxt feeds they may write to
+- no sessions, no cookies: few POST-writable resources (feeds, account data)
+  expect user credential parameters, which to store between requests is up to
+  the user / browser
+- users may register e-mail addresses and optional security questions to allow
+  for password reset (if enabled by site operator)
+- account registration may be closed or open to the public
+- https / ssl is supported (given paths to key and certificate files)
+- 
+ 
 ## Online demo
 
 A demo instance with frequent downtimes can be tested at
-http://test.plomlompom.com:8000 – don't expect any of its feeds' URLs to be
-stable. It's just for testing, and data frequently gets deleted.
+http://test.plomlompom.com:8000 (don't expect any of its feeds' URLs to be
+stable; it's just for testing, and data frequently gets deleted).
 
 ## Setup and run
 
@@ -20,8 +32,9 @@ stable. It's just for testing, and data frequently gets deleted.
 
 With htwtxt written in Go, the setup instructions below expect a Go development
 environment – with a somewhat current [go tool](https://golang.org/cmd/go/)
-installed, and a `$GOPATH` set. If your system does not have such an
-environment, here's some hints on how to set it up:
+installed, and a `$GOPATH` set. (Note that the golang package of version 1.3.3
+that is part of Debian Jessie is a bit too old already.) If your system does not
+have such an environment, here's some hints on how to set it up:
 
     wget https://storage.googleapis.com/golang/go1.5.3.linux-amd64.tar.gz
     sudo tar -C /usr/local -xzf go1.5.3.linux-amd64.tar.gz
