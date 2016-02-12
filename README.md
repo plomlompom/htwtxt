@@ -10,8 +10,7 @@ space.
 
 ## Features (or lack thereof)
 
-- user accounts may be registered, mapped to individual twtxt feeds they can
-  write to
+- user accounts may be registered, mapped to individual twtxt feeds
 - no sessions, no cookies: few POST-writable resources (feeds, account data)
   expect user credential parameters, which to store between requests if desired
   is up to the user / browser
@@ -20,12 +19,16 @@ space.
 - users may register e-mail addresses and optional security questions to allow
   for password reset (if enabled by site operator)
 - HTTPS / TLS support (if paths to key and certificate files are provided)
+- all HTML and CSS is read from a templates directory, the path of which can be
+  easily changed, so as to enable easy customization of the page appearance
  
 ## Online demo
 
-A demo instance with frequent downtimes and open sign-up can be tested at
-http://test.plomlompom.com:8000 (don't expect any of its feeds' URLs to be
-stable; it's just for testing, and data frequently gets deleted).
+A demo instance with frequent downtimes and public sign-up can be tested at
+<http://test.plomlompom.com:8000> (don't expect any of its feeds' URLs to be
+stable; it's just for testing, and data frequently gets deleted). A somewhat
+more conservatively managed instance can be found at
+<http://htwtxt.plomlompom.com:80/>.
 
 ## Setup and run
 
