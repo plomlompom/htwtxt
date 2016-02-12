@@ -20,6 +20,8 @@ import "time"
 const loginsFile = "logins.txt"
 const feedsDir = "feeds"
 const ipDelaysFile = "ip_delays.txt"
+const legalUrlChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" +
+	"0123456789_"
 
 var dataDir string
 var loginsPath string
@@ -30,32 +32,23 @@ var templ *template.Template
 var contactString string
 var signupOpen bool
 
-func writeAtomic(path, text string, mode os.FileMode) {
-	tmpFile := path + "_tmp"
-	if err := ioutil.WriteFile(tmpFile, []byte(text), mode); err != nil {
-		log.Fatal("Trouble writing file", err)
-	}
-	if err := os.Rename(path, path+"_"); err != nil {
-		log.Fatal("Trouble moving file", err)
-	}
-	if err := os.Rename(tmpFile, path); err != nil {
-		log.Fatal("Trouble moving file", err)
-	}
-	if err := os.Remove(path + "_"); err != nil {
-		log.Fatal("Trouble removing file", err)
+func createFileIfNotExists(path string) {
+	if _, err := os.Stat(path); err != nil {
+		file, err := os.Create(path)
+		if err != nil {
+			log.Fatal("Can't create file: ", err)
+		}
+		file.Close()
 	}
 }
 
-func writeLinesAtomic(path string, lines []string, mode os.FileMode) {
-	writeAtomic(path, strings.Join(lines, "\n"), mode)
-}
-
-func readFile(path string) string {
-	text, err := ioutil.ReadFile(path)
+func openFile(path string) *os.File {
+	file, err := os.Open(path)
 	if err != nil {
-		log.Fatal("Can't read file", err)
+		file.Close()
+		log.Fatal("Can't open file for reading", err)
 	}
-	return string(text)
+	return file
 }
 
 func linesFromFile(path string) []string {
@@ -69,48 +62,65 @@ func linesFromFile(path string) []string {
 	return strings.Split(string(text), "\n")
 }
 
-func createFileIfNotExists(path string) {
-	if _, err := os.Stat(path); err != nil {
-		file, err := os.Create(path)
-		if err != nil {
-			log.Fatal("Can't create file: ", err)
-		}
-		file.Close()
+func writeAtomic(path, text string) {
+	tmpFile := path + "_tmp"
+	if err := ioutil.WriteFile(tmpFile, []byte(text), 0600); err != nil {
+		log.Fatal("Trouble writing file", err)
+	}
+	if err := os.Rename(path, path+"_"); err != nil {
+		log.Fatal("Trouble moving file", err)
+	}
+	if err := os.Rename(tmpFile, path); err != nil {
+		log.Fatal("Trouble moving file", err)
+	}
+	if err := os.Remove(path + "_"); err != nil {
+		log.Fatal("Trouble removing file", err)
 	}
 }
 
-func appendToFile(path string, msg string, mode os.FileMode) {
-	text := readFile(path)
-	text = text + msg
-	writeAtomic(path, text, mode)
+func writeLinesAtomic(path string, lines []string) {
+	writeAtomic(path, strings.Join(lines, "\n"))
 }
 
-func onlyLegalRunes(str string) bool {
-	alphabet := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" +
-		"0123456789_"
-	for _, ru := range str {
-		if !(strings.ContainsRune(alphabet, ru)) {
-			return false
-		}
-	}
-	return true
-}
-
-func execTemplate(w http.ResponseWriter, file string, input string) {
-	type data struct{ Msg string }
-	err := templ.ExecuteTemplate(w, file, data{Msg: input})
+func appendToFile(path string, msg string) {
+	text, err := ioutil.ReadFile(path)
 	if err != nil {
-		log.Fatal("Trouble executing template", err)
+		log.Fatal("Can't read file", err)
 	}
+	writeAtomic(path, string(text)+msg+"\n")
 }
 
-func openFile(path string) *os.File {
-	file, err := os.Open(path)
-	if err != nil {
-		file.Close()
-		log.Fatal("Can't open file for reading", err)
+func removeLineStartingWith(path, token string) {
+	lines := linesFromFile(path)
+	lineNumber := -1
+	for lineCount := 0; lineCount < len(lines); lineCount += 1 {
+		line := lines[lineCount]
+		tokens := strings.Split(line, " ")
+		if 0 == strings.Compare(token, tokens[0]) {
+			lineNumber = lineCount
+			break
+		}
 	}
-	return file
+	lines = append(lines[:lineNumber], lines[lineNumber+1:]...)
+	writeLinesAtomic(path, lines)
+}
+
+func removeLineFromFile(path string, lineNumber int) {
+	lines := linesFromFile(ipDelaysPath)
+	lines = append(lines[:lineNumber], lines[lineNumber+1:]...)
+	writeLinesAtomic(path, lines)
+}
+
+func replaceLineStartingWith(path, token, newLine string) {
+	lines := linesFromFile(path)
+	for i, line := range lines {
+		tokens := strings.Split(line, " ")
+		if 0 == strings.Compare(token, tokens[0]) {
+			lines[i] = newLine
+			break
+		}
+	}
+	writeLinesAtomic(path, lines)
 }
 
 func tokensFromLine(scanner *bufio.Scanner, nTokensExpected int) []string {
@@ -125,17 +135,32 @@ func tokensFromLine(scanner *bufio.Scanner, nTokensExpected int) []string {
 	return tokens
 }
 
-func checkDelay(w http.ResponseWriter, ip string) (int, int, error) {
+func execTemplate(w http.ResponseWriter, file string, input string) {
+	type data struct{ Msg string }
+	err := templ.ExecuteTemplate(w, file, data{Msg: input})
+	if err != nil {
+		log.Fatal("Trouble executing template", err)
+	}
+}
+
+func onlyLegalRunes(str string) bool {
+	for _, ru := range str {
+		if !(strings.ContainsRune(legalUrlChars, ru)) {
+			return false
+		}
+	}
+	return true
+}
+
+func checkDelay(w http.ResponseWriter, ip string) (int, error) {
 	var err error
-	var openTime, delay, lineNumber, lineCounter int
 	fileIpDelays := openFile(ipDelaysPath)
 	defer fileIpDelays.Close()
 	scanner := bufio.NewScanner(bufio.NewReader(fileIpDelays))
 	tokens := tokensFromLine(scanner, 3)
-	lineNumber = -1
-	lineCounter = -1
+	delay := -1
+	var openTime int
 	for 3 == len(tokens) {
-		lineCounter += 1
 		if 0 == strings.Compare(tokens[0], ip) {
 			openTime, err = strconv.Atoi(tokens[1])
 			if err != nil {
@@ -151,12 +176,11 @@ func checkDelay(w http.ResponseWriter, ip string) (int, int, error) {
 						"next login attempt.")
 				err = errors.New("")
 			}
-			lineNumber = lineCounter
 			break
 		}
 		tokens = tokensFromLine(scanner, 3)
 	}
-	return delay, lineNumber, err
+	return delay, err
 }
 
 func login(w http.ResponseWriter, r *http.Request) (string, error) {
@@ -164,7 +188,7 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 	if err != nil {
 		log.Fatal("Can't parse ip from request", err)
 	}
-	delay, lineNumber, err := checkDelay(w, ip)
+	delay, err := checkDelay(w, ip)
 	if err != nil {
 		return "", err
 	}
@@ -180,30 +204,27 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 			nil == bcrypt.CompareHashAndPassword([]byte(tokens[1]),
 				[]byte(pw)) {
 			loginValid = true
-			if 0 <= lineNumber {
-				lines := linesFromFile(ipDelaysPath)
-				lines = append(lines[:lineNumber],
-					lines[lineNumber+1:]...)
-				writeLinesAtomic(ipDelaysPath, lines, 0600)
+			if 0 <= delay {
+				removeLineStartingWith(ipDelaysPath, ip)
 			}
+			break
 		}
 		tokens = tokensFromLine(scanner, 3)
 	}
 	if !loginValid {
+		newLine := delay == -1
 		delay = 2 * delay
-		if 0 == delay {
+		if -2 == delay {
 			delay = 1
 		}
 		strOpenTime := strconv.Itoa(int(time.Now().Unix()) + delay)
 		strDelay := strconv.Itoa(delay)
 		line := ip + " " + strOpenTime + " " + strDelay
-		lines := linesFromFile(ipDelaysPath)
-		if -1 == lineNumber {
-			lines = append(lines, line)
+		if newLine {
+			appendToFile(ipDelaysPath, line)
 		} else {
-			lines[lineNumber] = line
+			replaceLineStartingWith(ipDelaysPath, ip, line)
 		}
-		writeLinesAtomic(ipDelaysPath, lines, 0600)
 		execTemplate(w, "error.html", "Bad login.")
 		return name, errors.New("")
 	}
@@ -273,7 +294,7 @@ func signUpHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	appendToFile(loginsPath, newLine+"\n", 0600)
+	appendToFile(loginsPath, newLine)
 	execTemplate(w, "feedset.html", "")
 }
 
@@ -290,15 +311,7 @@ func accountPostHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	lines := linesFromFile(loginsPath)
-	for i, line := range lines {
-		tokens := strings.Split(line, " ")
-		if 0 == strings.Compare(name, tokens[0]) {
-			lines[i] = newLine
-			break
-		}
-	}
-	writeLinesAtomic(loginsPath, lines, 0600)
+	replaceLineStartingWith(loginsPath, name, newLine)
 	execTemplate(w, "feedset.html", "")
 }
 
@@ -328,8 +341,7 @@ func twtxtPostHandler(w http.ResponseWriter, r *http.Request) {
 	twtsFile := feedsPath + "/" + name
 	createFileIfNotExists(twtsFile)
 	text = strings.Replace(text, "\n", " ", -1)
-	appendToFile(twtsFile, time.Now().Format(time.RFC3339)+"\t"+text+"\n",
-		0600)
+	appendToFile(twtsFile, time.Now().Format(time.RFC3339)+"\t"+text)
 	http.Redirect(w, r, "/"+feedsDir+"/"+name, 302)
 }
 
