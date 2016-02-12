@@ -3,10 +3,15 @@
 package main
 
 import "bufio"
+import "crypto/rand"
+import "encoding/base64"
 import "errors"
 import "flag"
+import "fmt"
 import "github.com/gorilla/mux"
 import "golang.org/x/crypto/bcrypt"
+import "golang.org/x/crypto/ssh/terminal"
+import "gopkg.in/gomail.v2"
 import "html/template"
 import "io/ioutil"
 import "log"
@@ -15,22 +20,31 @@ import "net/http"
 import "os"
 import "strconv"
 import "strings"
+import "syscall"
 import "time"
 
 const loginsFile = "logins.txt"
 const feedsDir = "feeds"
 const ipDelaysFile = "ip_delays.txt"
+const pwResetFile = "password_reset.txt"
 const legalUrlChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" +
 	"0123456789_"
+const resetLinkExp = 1800
 
-var dataDir string
-var loginsPath string
-var ipDelaysPath string
-var feedsPath string
-var templPath string
-var templ *template.Template
 var contactString string
+var dataDir string
+var feedsPath string
+var ipDelaysPath string
+var loginsPath string
+var mailpassword string
+var mailport int
+var mailserver string
+var mailuser string
+var myself string
+var pwResetPath string
 var signupOpen bool
+var templ *template.Template
+var templPath string
 
 func createFileIfNotExists(path string) {
 	if _, err := os.Stat(path); err != nil {
@@ -171,8 +185,7 @@ func checkDelay(w http.ResponseWriter, ip string) (int, error) {
 	var err error
 	var openTime int
 	delay := -1
-	tokens, errGet := getFromFileEntryFor(ipDelaysPath, ip, 3)
-	if errGet == nil {
+	if tokens, e := getFromFileEntryFor(ipDelaysPath, ip, 3); e == nil {
 		openTime, err = strconv.Atoi(tokens[0])
 		if err != nil {
 			log.Fatal("Can't parse IP delays file", err)
@@ -225,7 +238,7 @@ func login(w http.ResponseWriter, r *http.Request) (string, error) {
 		} else {
 			replaceLineStartingWith(ipDelaysPath, ip, line)
 		}
-		execTemplate(w, "error.html", "Bad login.")
+		execTemplate(w, "error_pw.html", "Bad login.")
 		return name, errors.New("")
 	}
 	return name, nil
@@ -258,6 +271,37 @@ func accountLine(w http.ResponseWriter, r *http.Request,
 	return name + " " + string(hash) + " " + mail, nil
 }
 
+func prepPasswordReset(name string) {
+	if "" == mailserver {
+		return
+	}
+	var target string
+	tokens, err := getFromFileEntryFor(loginsPath, name, 3)
+	if err != nil {
+		return
+	} else if "" == tokens[1] {
+		return
+	}
+	target = tokens[1]
+	b := make([]byte, 64)
+	if _, err := rand.Read(b); err != nil {
+		log.Fatal("Random string generation failed", err)
+	}
+	urlPart := base64.URLEncoding.EncodeToString(b)
+	strTime := strconv.Itoa(int(time.Now().Unix()))
+	appendToFile(pwResetPath, urlPart+" "+name+" "+strTime)
+	m := gomail.NewMessage()
+	m.SetHeader("From", mailuser)
+	m.SetHeader("To", target)
+	m.SetHeader("Subject", "password reset link")
+	msg := myself + "/passwordreset/" + urlPart
+	m.SetBody("text/plain", msg)
+	d := gomail.NewPlainDialer(mailserver, mailport, mailuser, mailpassword)
+	if err := d.DialAndSend(m); err != nil {
+		log.Fatal("Can't send mail", err)
+	}
+}
+
 func cssHandler(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, templPath+"/style.css")
 }
@@ -268,6 +312,59 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 func infoHandler(w http.ResponseWriter, r *http.Request) {
 	execTemplate(w, "info.html", contactString)
+}
+
+func passwordResetRequestGetHandler(w http.ResponseWriter, r *http.Request) {
+	if "" == mailserver {
+		execTemplate(w, "nopwresetrequest.html", "")
+	} else {
+		execTemplate(w, "pwresetrequest.html", "")
+	}
+}
+
+func passwordResetRequestPostHandler(w http.ResponseWriter, r *http.Request) {
+	go prepPasswordReset(r.FormValue("name"))
+	http.Redirect(w, r, "/", 302)
+}
+
+func passwordResetLinkGetHandler(w http.ResponseWriter, r *http.Request) {
+	urlPart := mux.Vars(r)["secret"]
+	if tokens, e := getFromFileEntryFor(pwResetPath, urlPart, 3); e == nil {
+		createTime, err := strconv.Atoi(tokens[1])
+		if err != nil {
+			log.Fatal("Can't read time from pw reset file",
+				err)
+		}
+		if createTime+resetLinkExp >= int(time.Now().Unix()) {
+			execTemplate(w, "pwreset.html", urlPart)
+			return
+		}
+	}
+	http.Redirect(w, r, "/404", 302)
+}
+
+func passwordResetLinkPostHandler(w http.ResponseWriter, r *http.Request) {
+	urlPart := mux.Vars(r)["secret"]
+	name := r.FormValue("name")
+	if tokens, e := getFromFileEntryFor(pwResetPath, urlPart, 3); e == nil {
+		createTime, err := strconv.Atoi(tokens[1])
+		if err != nil {
+			log.Fatal("Can't read time from pw reset file",
+				err)
+		}
+		if tokens[0] == name &&
+			createTime+resetLinkExp >= int(time.Now().Unix()) {
+			line, err := accountLine(w, r, false)
+			if err != nil {
+				return
+			}
+			replaceLineStartingWith(loginsPath, tokens[0], line)
+			removeLineStartingWith(pwResetPath, urlPart)
+			execTemplate(w, "feedset.html", "")
+			return
+		}
+	}
+	http.Redirect(w, r, "/404", 302)
 }
 
 func signUpFormHandler(w http.ResponseWriter, r *http.Request) {
@@ -353,8 +450,29 @@ func twtxtHandler(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path)
 }
 
-func main() {
-	var err error
+func nameMyself(ssl bool, port int) string {
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		log.Fatal("Can't get local interface addresses", err)
+	}
+	var ip string
+	for _, address := range addresses {
+		if ipnet, ok := address.(*net.IPNet); ok &&
+			!ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				ip = ipnet.IP.String()
+			}
+
+		}
+	}
+	s := ""
+	if ssl {
+		s = "s"
+	}
+	return "http" + s + "://" + ip + ":" + strconv.Itoa(port)
+}
+
+func readOptions() (*int, *string, *string) {
 	portPtr := flag.Int("port", 8000, "port to serve")
 	keyPtr := flag.String("key", "", "SSL key file")
 	certPtr := flag.String("cert", "", "SSL certificate file")
@@ -368,16 +486,41 @@ func main() {
 		"operator contact info to display on info page")
 	flag.BoolVar(&signupOpen, "signup", false,
 		"enable on-site account creation")
+	flag.StringVar(&mailserver, "mailserver", "",
+		"SMTP server to send mails through")
+	flag.IntVar(&mailport, "mailport", 0,
+		"port of SMTP server to send mails through")
+	flag.StringVar(&mailuser, "mailuser", "",
+		"username to login with on SMTP server to send mails through")
 	flag.Parse()
+	if "" != mailserver && ("" == mailuser || 0 == mailport) {
+		log.Fatal("Mail server usage needs username and port number")
+	}
+	if ("" == *keyPtr && "" != *certPtr) ||
+		("" != *keyPtr && "" == *certPtr) {
+		log.Fatal("Expect either both key and certificate or none.")
+	}
+	if "" != mailserver {
+		fmt.Print("Enter password for smtp server: ")
+		bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			log.Fatal("Trouble reading password")
+		}
+		mailpassword = string(bytePassword)
+		log.Println(mailpassword)
+	}
+	return portPtr, keyPtr, certPtr
+}
+
+func main() {
+	var err error
+	portPtr, keyPtr, certPtr := readOptions()
 	log.Println("Using as templates dir:", templPath)
 	log.Println("Using as data dir:", dataDir)
 	loginsPath = dataDir + "/" + loginsFile
 	feedsPath = dataDir + "/" + feedsDir
 	ipDelaysPath = dataDir + "/" + ipDelaysFile
-	if ("" == *keyPtr && "" != *certPtr) ||
-		("" != *keyPtr && "" == *certPtr) {
-		log.Fatal("Expect either both key and certificate or none.")
-	}
+	pwResetPath = dataDir + "/" + pwResetFile
 	if "" != *keyPtr {
 		log.Println("Using TLS.")
 		if _, err := os.Stat(*certPtr); err != nil {
@@ -388,7 +531,9 @@ func main() {
 		}
 	}
 	createFileIfNotExists(loginsPath)
+	createFileIfNotExists(pwResetPath)
 	createFileIfNotExists(ipDelaysPath)
+	myself = nameMyself("" != *keyPtr, *portPtr)
 	// TODO: Handle err here.
 	_ = os.Mkdir(feedsPath, 0700)
 	templ, err = template.New("main").ParseGlob(templPath + "/*.html")
@@ -406,6 +551,14 @@ func main() {
 	router.HandleFunc("/feeds", twtxtPostHandler).Methods("POST")
 	router.HandleFunc("/feeds/{name}", twtxtHandler)
 	router.HandleFunc("/info", infoHandler)
+	router.HandleFunc("/passwordreset", passwordResetRequestPostHandler).
+		Methods("POST")
+	router.HandleFunc("/passwordreset", passwordResetRequestGetHandler).
+		Methods("GET")
+	router.HandleFunc("/passwordreset/{secret}",
+		passwordResetLinkGetHandler).Methods("GET")
+	router.HandleFunc("/passwordreset/{secret}",
+		passwordResetLinkPostHandler).Methods("POST")
 	router.HandleFunc("/style.css", cssHandler)
 	http.Handle("/", router)
 	log.Println("serving at port", *portPtr)

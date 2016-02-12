@@ -1,0 +1,17 @@
+{{ template "header" }}
+<form method="post" action="passwordreset">
+	<fieldset>
+		<legend>Reset password</legend>
+
+		<div>
+			<label for="name">Name</label>
+			<input type="text" id="name" name="name" maxlength="140" required />
+		</div>
+
+		<hr />
+
+		<button type="submit">Request password reset</button>
+	</fieldset>
+</form>
+{{ template "footer" }}
+

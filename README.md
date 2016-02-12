@@ -47,7 +47,7 @@ This will build and start the server, which will store login and feed data below
 
 ## Tweaking
 
-### Configuring port number and TLS
+### Configure port number and TLS
 
 By default, htwtxt serves unencrypted HTTP over port 8000. But the executable
 accepts the flag `--port` to provide an alternate port number, and the flags
@@ -64,15 +64,26 @@ This is [a common privilege problem](http://stackoverflow.com/q/413807) and
 
     sudo setcap 'cap_net_bind_service=+ep' $GOPATH/bin/htwtxt
 
-### Opening up sign-up
+### Public sign-up
 
 By default, sign up / account creation is not open to the public. The `--signup`
 flag must be set explicitely to change that.
 
-### Setting site owner contact info
+### Set site owner contact info
 
 The server serves a `/info` page (from the `info.html` template) that may
 include the site owner's contact info, as given with the `--info` flag.
+
+### Activate password reset mails
+
+Feed owners may add e-mail addresses to their login data to authenticate
+themselves to the site operator and receive password reset links when requested.
+The password reset mechanism by mail is inactive by default. To activate it, a
+set of flags `--mailserver`, `--mailport`, `--mailuser` must be provided to
+describe a SMTP server and its login from which to send password reset mails to
+users' mail addresses. (The site operator will be prompted for his SMTP login
+password only when the server starts.) Whether this mechanism is trustworthy or
+not is a decision up to the site operator.
 
 ### Changing HTML templates
 
