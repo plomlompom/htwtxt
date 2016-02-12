@@ -18,7 +18,6 @@ space.
   for password reset (if enabled by site operator)
 - account registration may be closed or open to the public
 - https / ssl is supported (given paths to key and certificate files)
-- 
  
 ## Online demo
 
