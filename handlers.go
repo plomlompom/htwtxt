@@ -57,77 +57,84 @@ func passwordResetRequestPostHandler(w http.ResponseWriter, r *http.Request) {
 
 func passwordResetLinkGetHandler(w http.ResponseWriter, r *http.Request) {
 	urlPart := mux.Vars(r)["secret"]
-	if tokens, e := getFromFileEntryFor(pwResetPath, urlPart, 3); e == nil {
-		createTime, err := strconv.Atoi(tokens[1])
-		if err != nil {
-			log.Fatal("Can't read time from pw reset file", err)
-		}
-		if createTime+resetLinkExp >= int(time.Now().Unix()) {
-			name := tokens[0]
-			tokensUser, err := getFromFileEntryFor(loginsPath, name,
-				5)
-			if err != nil {
-				log.Fatal("Can't read from loings file", err)
-			}
-			if "" != tokensUser[2] {
-				type data struct {
-					Secret   string
-					Question string
-				}
-				err := templ.ExecuteTemplate(w,
-					"pwresetquestion.html", data{
-						Secret:   urlPart,
-						Question: tokensUser[2]})
-				if err != nil {
-					log.Fatal("Trouble executing template",
-						err)
-				}
-			} else {
-				execTemplate(w, "pwreset.html", urlPart)
-			}
-			return
-		}
+	tokens, err := getFromFileEntryFor(pwResetPath, urlPart, 3)
+	if err != nil {
+		http.Redirect(w, r, "/404", 302)
+		return
 	}
-	http.Redirect(w, r, "/404", 302)
+	createTime, err := strconv.Atoi(tokens[1])
+	if err != nil {
+		log.Fatal("Can't read time from pw reset file", err)
+	}
+	if createTime+resetLinkExp < int(time.Now().Unix()) {
+		http.Redirect(w, r, "/404", 302)
+		return
+	}
+	name := tokens[0]
+	tokensUser, err := getFromFileEntryFor(loginsPath, name,
+		5)
+	if err != nil {
+		log.Fatal("Can't read from loings file", err)
+	}
+	if "" != tokensUser[2] {
+		type data struct {
+			Secret   string
+			Question string
+		}
+		err := templ.ExecuteTemplate(w,
+			"pwresetquestion.html", data{
+				Secret:   urlPart,
+				Question: tokensUser[2]})
+		if err != nil {
+			log.Fatal("Trouble executing template", err)
+		}
+		return
+	}
+	execTemplate(w, "pwreset.html", urlPart)
 }
 
 func passwordResetLinkPostHandler(w http.ResponseWriter, r *http.Request) {
 	urlPart := mux.Vars(r)["secret"]
 	name := r.FormValue("name")
-	if tokens, e := getFromFileEntryFor(pwResetPath, urlPart, 3); e == nil {
-		createTime, err := strconv.Atoi(tokens[1])
-		if err != nil {
-			log.Fatal("Can't read time from pw reset file",
-				err)
-		}
-		if tokens[0] == name &&
-			createTime+resetLinkExp >= int(time.Now().Unix()) {
-			tokensOld, err := getFromFileEntryFor(loginsPath, name,
-				5)
-			if err != nil {
-				log.Fatal("Can't get entry for user", err)
-			}
-			if "" != tokensOld[2] &&
-				nil != bcrypt.CompareHashAndPassword(
-					[]byte(tokensOld[3]),
-					[]byte(r.FormValue("secanswer"))) {
-				http.Redirect(w, r, "/", 302)
-				return
-			}
-			hash, err := newPassword(w, r)
-			if err != nil {
-				execTemplate(w, "error.html", err.Error())
-				return
-			}
-			tokensOld[0] = hash
-			line := name + "\t" + strings.Join(tokensOld, "\t")
-			replaceLineStartingWith(loginsPath, tokens[0], line)
-			removeLineStartingWith(pwResetPath, urlPart)
-			execTemplate(w, "feedset.html", "")
-			return
-		}
+	tokens, err := getFromFileEntryFor(pwResetPath, urlPart, 3)
+	if err != nil {
+		http.Redirect(w, r, "/404", 302)
+		return
 	}
-	http.Redirect(w, r, "/", 302)
+	createTime, err := strconv.Atoi(tokens[1])
+	if err != nil {
+		log.Fatal("Can't read time from pw reset file", err)
+	}
+	if createTime+resetLinkExp < int(time.Now().Unix()) {
+		http.Redirect(w, r, "/404", 302)
+		return
+	}
+	if tokens[0] != name {
+		execTemplate(w, "error.html", "Wrong!")
+		removeLineStartingWith(pwResetPath, urlPart)
+		return
+	}
+	tokensUser, err := getFromFileEntryFor(loginsPath, name, 5)
+	if err != nil {
+		log.Fatal("Can't get entry for user", err)
+	}
+	if "" != tokensUser[2] &&
+		nil != bcrypt.CompareHashAndPassword([]byte(tokensUser[3]),
+			[]byte(r.FormValue("secanswer"))) {
+		execTemplate(w, "error.html", "Wrong!")
+		removeLineStartingWith(pwResetPath, urlPart)
+		return
+	}
+	hash, err := newPassword(w, r)
+	if err != nil {
+		execTemplate(w, "error.html", err.Error())
+		return
+	}
+	tokensUser[0] = hash
+	line := name + "\t" + strings.Join(tokensUser, "\t")
+	replaceLineStartingWith(loginsPath, tokens[0], line)
+	removeLineStartingWith(pwResetPath, urlPart)
+	execTemplate(w, "feedset.html", "")
 }
 
 func signUpFormHandler(w http.ResponseWriter, r *http.Request) {

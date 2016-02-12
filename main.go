@@ -241,6 +241,7 @@ func readOptions() (string, int, string, int) {
 			log.Fatal("Trouble reading password")
 		}
 		mailpw = string(bytePassword)
+		fmt.Println("")
 	}
 	return mailserver, mailport, mailpw, port
 }
