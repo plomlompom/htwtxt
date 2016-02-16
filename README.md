@@ -52,18 +52,6 @@ initializes your environment variables. And you might want to replace the
 package pulled by wget by whatever is the newest stable release of Go
 available.)
 
-### Writing twtxt messages via API
-
-Using htwtxt from a web browser for purposes such as writing a twtxt message
-should be self-explanatory (just use the HTML form on the start page). But it's
-also possible to write new messages directly to a twtxt feed via a `POST`
-request to `/feeds`. Just provide appropriate values for the data fields `name`
-and `password` (your login) and `twt` (the message to append). Here's a command
-line example utilizing the curl tool:
-
-    curl -X POST -d 'name=foo' -d 'password=bar' -d 'twt=Hi there.' \
-    http://test.plomlompom.com:8000/feeds
-
 ### Clone, build, run
 
 Once your Go build environment is ready, do this:
@@ -75,6 +63,18 @@ Once your Go build environment is ready, do this:
 
 This will build and start the server, which will store login and feed data below
 `~/htwtxt`. An alternate directory may be specified with the `--dir` flag.
+
+### Writing twtxt messages via API
+
+Using htwtxt from a web browser for purposes such as writing a twtxt message
+should be self-explanatory (just use the HTML form on the start page). But it's
+also possible to write new messages directly to a twtxt feed via a `POST`
+request to `/feeds`. Just provide appropriate values for the data fields `name`
+and `password` (your login) and `twt` (the message to append). Here's a command
+line example utilizing the curl tool:
+
+    curl -X POST -d 'name=foo' -d 'password=bar' -d 'twt=Hi there.' \
+    http://test.plomlompom.com:8000/feeds
 
 ## Tweaking
 
@@ -132,4 +132,4 @@ with template design input by [Kai Kubasta](http://kaikubasta.de).
 
 License: Affero GPL version 3, see `./LICENSE`
 
-Current version number: 1.0.2
+Current version number: 1.0.3
