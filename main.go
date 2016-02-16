@@ -2,59 +2,33 @@
 
 package main
 
-import "bufio"
 import "errors"
 import "flag"
-import "github.com/gorilla/mux"
+import "fmt"
 import "golang.org/x/crypto/bcrypt"
+import "golang.org/x/crypto/ssh/terminal"
+import "gopkg.in/gomail.v2"
 import "html/template"
 import "io/ioutil"
 import "log"
+import "net"
 import "net/http"
 import "os"
 import "strconv"
 import "strings"
+import "syscall"
 import "time"
 
-const loginsFile = "logins.txt"
-const feedsDir = "feeds"
+const resetLinkExp = 1800
+const resetWaitTime = 3600 * 24
+const version = "1.0"
 
-var dataDir string
-var loginsPath string
-var feedsPath string
+var contact string
+var dialer *gomail.Dialer
+var mailuser string
+var myself string
+var signupOpen bool
 var templ *template.Template
-
-func createFileIfNotExists(path string) {
-	if _, err := os.Stat(path); err != nil {
-		file, err := os.Create(path)
-		if err != nil {
-			log.Fatal("Can't create file: ", err)
-		}
-		file.Close()
-	}
-}
-
-func appendToFile(path string, msg string) {
-	fileWrite, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0600)
-	defer fileWrite.Close()
-	if err != nil {
-		log.Fatal("Can't open file for appending", err)
-	}
-	if _, err = fileWrite.WriteString(msg); err != nil {
-		log.Fatal("Can't write to file", err)
-	}
-}
-
-func onlyLegalRunes(str string) bool {
-	alphabet := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" +
-		"0123456789_"
-	for _, ru := range str {
-		if !(strings.ContainsRune(alphabet, ru)) {
-			return false
-		}
-	}
-	return true
-}
 
 func execTemplate(w http.ResponseWriter, file string, input string) {
 	type data struct{ Msg string }
@@ -64,239 +38,273 @@ func execTemplate(w http.ResponseWriter, file string, input string) {
 	}
 }
 
+func handleTemplate(path, msg string) func(w http.ResponseWriter,
+	r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		execTemplate(w, path, msg)
+	}
+}
+
+func onlyLegalRunes(str string) bool {
+	const legalUrlChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+		"abcdefghijklmnopqrstuvwxyz0123456789_"
+	for _, ru := range str {
+		if !(strings.ContainsRune(legalUrlChars, ru)) {
+			return false
+		}
+	}
+	return true
+}
+
+func checkDelay(w http.ResponseWriter, ip string) (int, error) {
+	var err error
+	var openTime int
+	delay := -1
+	if tokens, e := getFromFileEntryFor(ipDelaysPath, ip, 3); e == nil {
+		openTime, err = strconv.Atoi(tokens[0])
+		if err != nil {
+			log.Fatal("Can't parse IP delays file", err)
+		}
+		delay, err = strconv.Atoi(tokens[1])
+		if err != nil {
+			log.Fatal("Can't parse IP delays file", err)
+		}
+		if int(time.Now().Unix()) < openTime {
+			execTemplate(w, "error.html",
+				"This IP must wait a while for its "+
+					"next login attempt.")
+			err = errors.New("")
+		}
+	}
+	return delay, err
+}
+
 func login(w http.ResponseWriter, r *http.Request) (string, error) {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		log.Fatal("Can't parse ip from request", err)
+	}
+	delay, err := checkDelay(w, ip)
+	if err != nil {
+		return "", err
+	}
 	name := r.FormValue("name")
 	pw := r.FormValue("password")
 	loginValid := false
-	file, err := os.Open(loginsPath)
-	defer file.Close()
-	if err != nil {
-		log.Fatal("Can't open file for reading", err)
-	}
-	scanner := bufio.NewScanner(bufio.NewReader(file))
-	for {
-		if !scanner.Scan() {
-			break
-		}
-		line := scanner.Text()
-		tokens := strings.Split(line, " ")
-		if len(tokens) == 3 {
-			if 0 == strings.Compare(tokens[0], name) &&
-				nil == bcrypt.CompareHashAndPassword(
-					[]byte(tokens[1]), []byte(pw)) {
-				loginValid = true
-
-			}
+	tokens, err := getFromFileEntryFor(loginsPath, name, 5)
+	if err == nil && nil == bcrypt.CompareHashAndPassword([]byte(tokens[0]),
+		[]byte(pw)) {
+		loginValid = true
+		if 0 <= delay {
+			removeLineStartingWith(ipDelaysPath, ip)
 		}
 	}
 	if !loginValid {
-		execTemplate(w, "error.html", "Bad login.")
+		newLine := delay == -1
+		delay = 2 * delay
+		if -2 == delay {
+			delay = 1
+		}
+		strOpenTime := strconv.Itoa(int(time.Now().Unix()) + delay)
+		strDelay := strconv.Itoa(delay)
+		line := ip + "\t" + strOpenTime + "\t" + strDelay
+		if newLine {
+			appendToFile(ipDelaysPath, line)
+		} else {
+			replaceLineStartingWith(ipDelaysPath, ip, line)
+		}
+		execTemplate(w, "error_login.html", "Bad login.")
 		return name, errors.New("")
 	}
 	return name, nil
 }
 
-func accountLine(w http.ResponseWriter, r *http.Request,
-	checkDupl bool) (string, error) {
-	name := r.FormValue("name")
-	pw := r.FormValue("new_password")
-	pw2 := r.FormValue("new_password2")
-	mail := r.FormValue("mail")
-	if 0 != strings.Compare(pw, pw2) || 0 == strings.Compare("name", "") ||
-		0 == strings.Compare(pw, "") || !onlyLegalRunes(name) ||
-		len(name) > 140 {
-		execTemplate(w, "error.html", "Invalid values.")
-		return "", errors.New("")
-	}
-	if checkDupl {
-		fileRead, err := os.Open(loginsPath)
-		defer fileRead.Close()
-		if err != nil {
-			log.Fatal("Can't open file for reading", err)
-		}
-		scanner := bufio.NewScanner(bufio.NewReader(fileRead))
-		for {
-			if !scanner.Scan() {
-				break
-			}
-			line := scanner.Text()
-			tokens := strings.Split(line, " ")
-			if 0 == strings.Compare(name, tokens[0]) {
-				execTemplate(w, "error.html", "Username taken.")
-				return "", errors.New("")
-			}
-		}
-	}
+func nameIsLegal(name string) bool {
+	return !("" == name || !onlyLegalRunes(name) || len(name) > 140)
+}
+
+func passwordIsLegal(password string) bool {
+	return !("" == password)
+}
+
+func hashFromPw(pw string) string {
 	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
 	if err != nil {
-		log.Fatal("Can't generate password hash", err)
+		log.Fatal("Can't generate hash", err)
 	}
-	return name + " " + string(hash) + " " + mail, nil
+	return string(hash)
 }
 
-func indexHandler(w http.ResponseWriter, r *http.Request) {
-	execTemplate(w, "index.html", "")
-}
-
-func signUpFormHandler(w http.ResponseWriter, r *http.Request) {
-	execTemplate(w, "signupform.html", "")
-}
-
-func signUpHandler(w http.ResponseWriter, r *http.Request) {
-	newLine, err := accountLine(w, r, true)
-	if err != nil {
-		return
+func newPassword(w http.ResponseWriter, r *http.Request) (string, error) {
+	pw := r.FormValue("new_password")
+	pw2 := r.FormValue("new_password2")
+	if 0 != strings.Compare(pw, pw2) {
+		return "", errors.New("Password values did not match")
+	} else if !passwordIsLegal(pw) {
+		return "", errors.New("Illegal password.")
 	}
-	appendToFile(loginsPath, newLine+"\n")
-	execTemplate(w, "feedset.html", "")
+	return hashFromPw(pw), nil
 }
 
-func accountFormHandler(w http.ResponseWriter, r *http.Request) {
-	execTemplate(w, "accountform.html", "")
+func newMailAddress(w http.ResponseWriter, r *http.Request) (string, error) {
+	mail := r.FormValue("mail")
+	if len(mail) > 140 || strings.ContainsRune(mail, '\n') ||
+		strings.ContainsRune(mail, '\t') {
+		return "", errors.New("Illegal mail address.")
+	}
+	return mail, nil
 }
 
-func accountPostHandler(w http.ResponseWriter, r *http.Request) {
+func newSecurityQuestion(w http.ResponseWriter, r *http.Request) (string,
+	string, error) {
+	secquestion := r.FormValue("secquestion")
+	secanswer := r.FormValue("secanswer")
+	if "" == secquestion || len(secquestion) > 140 ||
+		strings.ContainsRune(secquestion, '\n') ||
+		strings.ContainsRune(secquestion, '\t') {
+		return "", "", errors.New("Illegal security question.")
+	} else if "" == secanswer {
+		return "", "", errors.New("Illegal security question answer.")
+	}
+	return secquestion, hashFromPw(secanswer), nil
+}
+
+func changeLoginField(w http.ResponseWriter, r *http.Request,
+	getter func(w http.ResponseWriter, r *http.Request) (string, error),
+	position int) {
 	name, err := login(w, r)
 	if err != nil {
 		return
 	}
-	newLine, err := accountLine(w, r, false)
+	input, err := getter(w, r)
 	if err != nil {
+		execTemplate(w, "error.html", err.Error())
 		return
 	}
-	text, err := ioutil.ReadFile(loginsPath)
+	tokens, err := getFromFileEntryFor(loginsPath, name, 5)
 	if err != nil {
-		log.Fatal("Can't read file", err)
+		log.Fatal("Can't get entry for user", err)
 	}
-	lines := strings.Split(string(text), "\n")
-	for i, line := range lines {
-		tokens := strings.Split(line, " ")
-		if 0 == strings.Compare(name, tokens[0]) {
-			lines[i] = newLine
-			break
-		}
-	}
-	text = []byte(strings.Join(lines, "\n"))
-	tmpFile := "tmp_" + loginsPath
-	if err := ioutil.WriteFile(tmpFile, []byte(text), 0600); err != nil {
-		log.Fatal("Trouble writing file", err)
-	}
-	if err := os.Rename(loginsPath, "_"+loginsFile); err != nil {
-		log.Fatal("Trouble moving file", err)
-	}
-	if err := os.Rename(tmpFile, loginsPath); err != nil {
-		log.Fatal("Trouble moving file", err)
-	}
-	if err := os.Remove("_" + loginsPath); err != nil {
-		log.Fatal("Trouble removing file", err)
-	}
+	tokens[position] = input
+	replaceLineStartingWith(loginsPath, name,
+		name+"\t"+strings.Join(tokens, "\t"))
 	execTemplate(w, "feedset.html", "")
 }
 
-func listHandler(w http.ResponseWriter, r *http.Request) {
-	file, err := os.Open(loginsPath)
-	defer file.Close()
+func nameMyself(ssl bool, port int) string {
+	resp, err := http.Get("http://myexternalip.com/raw")
+	defer resp.Body.Close()
 	if err != nil {
-		log.Fatal("Can't open file for reading", err)
+		log.Fatal("Trouble getting IP", err)
 	}
-	scanner := bufio.NewScanner(bufio.NewReader(file))
-	var dir []string
-	for {
-		if !scanner.Scan() {
-			break
-		}
-		line := scanner.Text()
-		tokens := strings.Split(line, " ")
-		if len(tokens) == 3 {
-			dir = append(dir, tokens[0])
-		}
-	}
-	type data struct{ Dir []string }
-	err = templ.ExecuteTemplate(w, "list.html", data{Dir: dir})
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal("Trouble executing template", err)
+		log.Fatal("Trouble reading IP message body", err)
 	}
+	ip := strings.Replace(string(body), "\n", "", -1)
+	s := ""
+	if ssl {
+		s = "s"
+	}
+	return "http" + s + "://" + ip + ":" + strconv.Itoa(port)
 }
 
-func twtxtPostHandler(w http.ResponseWriter, r *http.Request) {
-	name, err := login(w, r)
-	if err != nil {
-		return
+func addUser(login string) {
+	fields := strings.Split(login, ":")
+	if len(fields) != 2 {
+		log.Fatal("Malformed adduser string, must be NAME:PASSWORD")
 	}
-	text := r.FormValue("twt")
-	twtsFile := feedsPath + "/" + name
-	createFileIfNotExists(twtsFile)
-	text = strings.Replace(text, "\n", " ", -1)
-	appendToFile(twtsFile, time.Now().Format(time.RFC3339)+"\t"+text+"\n")
-	http.Redirect(w, r, "/"+feedsDir+"/"+name, 302)
+	name := fields[0]
+	password := fields[1]
+	if !nameIsLegal(name) {
+		log.Fatal("Malformed adduser NAME argument.")
+	}
+	if !passwordIsLegal(password) {
+		log.Fatal("Malformed adduser PASSWORD argument.")
+	}
+	if _, err := getFromFileEntryFor(loginsPath, name, 5); err == nil {
+		log.Fatal("Username already taken.")
+	}
+	hash := hashFromPw(password)
+	appendToFile(loginsPath, name+"\t"+hash+"\t\t\t")
+	fmt.Println("Added user.")
 }
 
-func twtxtHandler(w http.ResponseWriter, r *http.Request) {
-	name := mux.Vars(r)["name"]
-	if !onlyLegalRunes(name) {
-		execTemplate(w, "error.html", "Bad path.")
-		return
-	}
-	path := feedsPath + "/" + name
-	if _, err := os.Stat(path); err != nil {
-		execTemplate(w, "error.html", "Empty twtxt for user.")
-		return
-	}
-	http.ServeFile(w, r, path)
-}
-
-func main() {
-	var err error
-	portPtr := flag.Int("port", 8000, "port to serve")
-	keyPtr := flag.String("key", "", "SSL key file")
-	certPtr := flag.String("cert", "", "SSL certificate file")
-	templDirPtr := flag.String("templates",
+func readOptions() (string, int, string, int, string, bool) {
+	var mailpw string
+	var mailport int
+	var mailserver string
+	var port int
+	var newLogin string
+	var showVersion bool
+	flag.StringVar(&newLogin, "adduser", "", "instead of starting as "+
+		"server, add user with login NAME:PASSWORD")
+	flag.IntVar(&port, "port", 8000, "port to serve")
+	flag.StringVar(&keyPath, "key", "", "SSL key file")
+	flag.StringVar(&certPath, "cert", "", "SSL certificate file")
+	flag.StringVar(&templPath, "templates",
 		os.Getenv("GOPATH")+"/src/htwtxt/templates",
 		"directory where to expect HTML templates")
 	flag.StringVar(&dataDir, "dir", os.Getenv("HOME")+"/htwtxt",
 		"directory to store feeds and login data")
+	flag.StringVar(&contact, "contact",
+		"[operator passed no contact info to server]",
+		"operator contact info to display on info page")
+	flag.BoolVar(&signupOpen, "signup", false,
+		"enable on-site account creation")
+	flag.BoolVar(&showVersion, "version", false, "show version number")
+	flag.StringVar(&mailserver, "mailserver", "",
+		"SMTP server to send mails through")
+	flag.IntVar(&mailport, "mailport", 0,
+		"port of SMTP server to send mails through")
+	flag.StringVar(&mailuser, "mailuser", "",
+		"username to login with on SMTP server to send mails through")
 	flag.Parse()
-	log.Println("Using as templates dir:", *templDirPtr)
-	log.Println("Using as data dir:", dataDir)
-	loginsPath = dataDir + "/" + loginsFile
-	feedsPath = dataDir + "/" + feedsDir
-	if ("" == *keyPtr && "" != *certPtr) ||
-		("" != *keyPtr && "" == *certPtr) {
+	if "" != mailserver && ("" == mailuser || 0 == mailport) {
+		log.Fatal("Mail server usage needs username and port number")
+	}
+	if ("" == keyPath && "" != certPath) ||
+		("" != keyPath && "" == certPath) {
 		log.Fatal("Expect either both key and certificate or none.")
 	}
-	if "" != *keyPtr {
-		log.Println("Using TLS.")
-		if _, err := os.Stat(*certPtr); err != nil {
-			log.Fatal("No certificate file found.")
+	if "" != mailserver {
+		fmt.Print("Enter password for smtp server: ")
+		bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+		if err != nil {
+			log.Fatal("Trouble reading password")
 		}
-		if _, err := os.Stat(*keyPtr); err != nil {
-			log.Fatal("No server key file found.")
-		}
+		mailpw = string(bytePassword)
+		fmt.Println("")
 	}
-	createFileIfNotExists(loginsPath)
-	// TODO: Handle err here.
-	_ = os.Mkdir(feedsPath, 0700)
-	templ, err = template.New("main").ParseGlob(*templDirPtr + "/*.html")
+	return mailserver, mailport, mailpw, port, newLogin, showVersion
+}
+
+func main() {
+	var err error
+	mailserver, mailport, mailpw, port, newLogin, showVersion :=
+		readOptions()
+	if showVersion {
+		fmt.Println("htwtxt", version)
+		return
+	}
+	initFilesAndDirs()
+	if "" != newLogin {
+		addUser(newLogin)
+		return
+	}
+	myself = nameMyself("" != keyPath, port)
+	templ, err = template.New("main").ParseGlob(templPath + "/*.html")
 	if err != nil {
 		log.Fatal("Can't set up new template: ", err)
 	}
-	router := mux.NewRouter()
-	router.HandleFunc("/", indexHandler)
-	router.HandleFunc("/feeds", listHandler).Methods("GET")
-	router.HandleFunc("/feeds/", listHandler)
-	router.HandleFunc("/account", accountFormHandler).Methods("GET")
-	router.HandleFunc("/account", accountPostHandler).Methods("POST")
-	router.HandleFunc("/signup", signUpFormHandler).Methods("GET")
-	router.HandleFunc("/signup", signUpHandler).Methods("POST")
-	router.HandleFunc("/feeds", twtxtPostHandler).Methods("POST")
-	router.HandleFunc("/feeds/{name}", twtxtHandler)
-	http.Handle("/", router)
-	log.Println("serving at port", *portPtr)
-	if "" != *keyPtr {
-		err = http.ListenAndServeTLS(":"+strconv.Itoa(*portPtr),
-			*certPtr, *keyPtr, nil)
+	http.Handle("/", handleRoutes())
+	dialer = gomail.NewPlainDialer(mailserver, mailport, mailuser, mailpw)
+	log.Println("serving at port", port)
+	if "" != keyPath {
+		err = http.ListenAndServeTLS(":"+strconv.Itoa(port),
+			certPath, keyPath, nil)
 	} else {
-		err = http.ListenAndServe(":"+strconv.Itoa(*portPtr), nil)
+		err = http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	}
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)

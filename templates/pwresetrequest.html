@@ -1,0 +1,24 @@
+{{ template "header" }}
+<form method="post" action="passwordreset">
+	<fieldset>
+		<legend>Request password reset</legend>
+
+		<div>
+			<label for="name">Account whose login to reset</label>
+			<input type="text" id="name" name="name" />
+
+                        <hr />
+
+                        <p>To reset the password for an account, an e-mail address <a href="/accountsetmail">must have been set</a> for it. The request here will (if not hindered by the wait time described below) then be answered with an e-mail to the address which contains nothing but a randomized URL pointing back to a page on this server.</p>
+                        <p>Said page will only be available for about 30 minutes. It will ask for the account name, a new password (must be entered twice), and, if a security question <a href="/accountsetquestion">has been set</a> for the account in question, an answer to that. The new password will only be set when the account name given there is the same given here, and, if a security question was set for that account, the answer is the one previously defined for it. Wrong answers will remove the temporary account reset page at once. A new one can be requested here only once every 24 hours.</p>
+                        <p>Note that clicking the button below will always redirect you to this site's start page – no matter whether the server actually sends out a password reset link for any account or not.</p>
+
+		</div>
+
+		<hr />
+
+		<button type="submit">Request</button>
+	</fieldset>
+</form>
+{{ template "footer" }}
+

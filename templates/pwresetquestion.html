@@ -1,0 +1,32 @@
+{{ template "header" }}
+<form method="post" action="/passwordreset/{{ .Secret }}">
+	<fieldset>
+		<legend>Reset account data</legend>
+
+		<div>
+			<label for="name">Name</label>
+			<input type="text" id="name" name="name" required />
+			<p id="name-desc">(please repeat for verification)</p>
+		</div>
+
+                <div>
+			<label for="secanswer">Security question: {{ .Question }}</label>
+			<input type="text" id="secanswer" name="secanswer" required />
+                </div>
+
+		<div>
+			<label for="password">New password</label>
+			<input type="password" id="password" name="new_password" required />
+		</div>
+
+		<div>
+			<label for="password2">New password <span>(repeat)</span></label>
+			<input type="password" id="password2" name="new_password2" required />
+		</div>
+
+		<hr />
+
+		<button type="submit">Reset</button>
+	</fieldset>
+</form>
+{{ template "footer" }}

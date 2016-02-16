@@ -1,5 +1,5 @@
 {{ template "header" }}
-<form method="post" action="feeds">
+<form method="post" action="signup">
 	<fieldset>
 		<legend>Create account</legend>
 
@@ -14,7 +14,18 @@
 			<input type="email" id="mail" name="mail" aria-describedby="mail-desc"/>
 			<p id="mail-desc">Used for password reset and feed owner authentication.</p>
 		</div>
+
+                <div>
+                        <label for="secquestion">Security question <span>(optional)</span></label>
+                        <input type="text" id="secquestion" name="secquestion" />
+			<p id="sequestion-desc">To pose on password reset request.</p>
+                </div>
 		
+		<div>
+			<label for="secanswer">Security question answer <span>(optional)</span></label>
+			<input type="text" id="secanswer" name="secanswer" />
+		</div>
+
 		<div>
 			<label for="password">Password</label>
 			<input type="password" id="password" name="new_password" required />

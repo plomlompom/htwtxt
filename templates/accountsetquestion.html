@@ -1,0 +1,34 @@
+{{ template "header" }}
+<form method="post" action="accountsetquestion">
+	<fieldset>
+		<legend>Set account security question</legend>
+
+                <div>
+                        <label for="secquestion">New security question</label>
+                        <input type="text" id="secquestion" name="secquestion" required />
+			<p id="sequestion-desc">To pose on password reset request.</p>
+                </div>
+		
+		<div>
+			<label for="secanswer">New security question answer</label>
+			<input type="text" id="secanswer" name="secanswer" required />
+                </div>
+
+		<hr />
+
+		<div>
+			<label for="name">Name</label>
+			<input type="text" id="name" name="name" maxlength="140" required />
+		</div>
+
+		<div>
+			<label for="password">Password</label>
+			<input type="password" id="password" name="password" required />
+		</div>
+
+		<hr />
+
+		<button type="submit">Update</button>
+	</fieldset>
+</form>
+{{ template "footer" }}
