@@ -15,6 +15,7 @@ space.
 - no sessions, no cookies: few POST-writable resources (feeds, account data)
   expect credentials, which to store between requests if desired is up to the
   user / browser
+- twtxt messages can be written via a HTML form in a web browser or via an API
 - account registration may be open to the public, or (default) closed (with the
   site operator adding new accounts manually)
 - users may add e-mail addresses and optional security questions to their
@@ -50,6 +51,18 @@ have such an environment, here's some hints on how to set it up:
 initializes your environment variables. And you might want to replace the
 package pulled by wget by whatever is the newest stable release of Go
 available.)
+
+### Writing twtxt messages via API
+
+Using htwtxt from a web browser for purposes such as writing a twtxt message
+should be self-explanatory (just use the HTML form on the start page). But it's
+also possible to write new messages directly to a twtxt feed via a `POST`
+request to `/feeds`. Just provide appropriate values for the data fields `name`
+and `password` (your login) and `twt` (the message to append). Here's a command
+line example utilizing the curl tool:
+
+    curl -X POST -d 'name=foo' -d 'password=bar' -d 'twt=Hi there.' \
+    http://test.plomlompom.com:8000/feeds
 
 ### Clone, build, run
 
@@ -119,4 +132,4 @@ with template design input by [Kai Kubasta](http://kaikubasta.de).
 
 License: Affero GPL version 3, see `./LICENSE`
 
-Current version number: 1.0.1
+Current version number: 1.0.2
