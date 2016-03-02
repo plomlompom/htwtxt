@@ -105,7 +105,7 @@ followed by an argument of the form `NAME:PASSWORD`.
 ### Set site owner contact info
 
 The server serves a `/info` page (from the `info.html` template) that may
-include the site owner's contact info, as given with the `--info` flag.
+include the site owner's contact info, as given with the `--contact` flag.
 
 ### Activate password reset mails
 
