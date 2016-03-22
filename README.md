@@ -32,6 +32,11 @@ stable; it's just for testing, and data frequently gets deleted). A somewhat
 more conservatively managed instance can be found at
 <http://htwtxt.plomlompom.com:80/>.
 
+## Docker image
+
+A docker image maintained by the htwtxt user buckket can be found here:
+<https://hub.docker.com/r/buckket/htwtxt/>
+
 ## Setup and run
 
 ### Setup Go build environment
