@@ -137,4 +137,4 @@ with template design input by [Kai Kubasta](http://kaikubasta.de).
 
 License: Affero GPL version 3, see `./LICENSE`
 
-Current version number: 1.0.5
+Current version number: 1.0.6
