@@ -30,7 +30,7 @@ A demo instance with frequent downtimes and public sign-up can be tested at
 <http://test.plomlompom.com:8000> (don't expect any of its feeds' URLs to be
 stable; it's just for testing, and data frequently gets deleted). A somewhat
 more conservatively managed instance can be found at
-<http://htwtxt.plomlompom.com:80/>.
+<https://htwtxt.plomlompom.com:443/>.
 
 ## Docker image
 
