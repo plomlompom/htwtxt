@@ -26,11 +26,7 @@ space.
  
 ## Online demo
 
-A demo instance with frequent downtimes and public sign-up can be tested at
-<http://test.plomlompom.com:8000> (don't expect any of its feeds' URLs to be
-stable; it's just for testing, and data frequently gets deleted). A somewhat
-more conservatively managed instance can be found at
-<https://htwtxt.plomlompom.com:443/>.
+A demo instance can be found at <https://htwtxt.plomlompom.com/>.
 
 ## Docker image
 
@@ -137,4 +133,4 @@ with template design input by [Kai Kubasta](http://kaikubasta.de).
 
 License: Affero GPL version 3, see `./LICENSE`
 
-Current version number: 1.0.6
+Current version number: 1.0.7
