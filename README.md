@@ -24,10 +24,6 @@ space.
 - all HTML+CSS is read from a templates directory, which can be freely chosen at
   server start so as to ease customization of the interface
  
-## Online demo
-
-A demo instance can be found at <https://htwtxt.plomlompom.com/>.
-
 ## Docker image
 
 A docker image maintained by the htwtxt user buckket can be found here:
